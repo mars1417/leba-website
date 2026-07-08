@@ -873,24 +873,38 @@ canvas { width: 100%; height: 100%; display: block; }
   </div>
 </div>
 
-<!-- ===== 多CDN加载 Three.js + OrbitControls ===== -->
+<!-- ===== 多CDN动态加载 Three.js + OrbitControls ===== -->
 <script>
-// CDN自动选择: 依次试 cdnjs → jsdelivr → unpkg（国内友好）
-var _3dCDNs = [
-  ['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js'],
-  ['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'],
-  ['https://unpkg.com/three@0.128.0/build/three.min.js', 'https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js']
-];
-(function _3dTry(n){
-  if(n>=_3dCDNs.length){var e=document.querySelector('#loading .lt');if(e)e.textContent='⚠️ 加载失败，请刷新或检查网络';return}
-  var s=document.createElement('script');s.src=_3dCDNs[n][0];
-  s.onload=function(){
-    var s2=document.createElement('script');s2.src=_3dCDNs[n][1];
-    s2.onload=function(){window._3dInit();};
-    s2.onerror=function(){_3dTry(n+1)};document.head.appendChild(s2)
-  };
-  s.onerror=function(){_3dTry(n+1)};document.head.appendChild(s)
+// 先加载Three.js核心（从jsdelivr开始）
+(function _3dLoadThree(tryIdx){
+  var cdnThree = [
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+    'https://unpkg.com/three@0.128.0/build/three.min.js'
+  ];
+  if(tryIdx >= cdnThree.length) return _3dFail();
+  var s = document.createElement('script');
+  s.src = cdnThree[tryIdx];
+  s.onload = function(){ _3dLoadOrbit(0); };  // Three.js OK → 加载OrbitControls
+  s.onerror = function(){ _3dLoadThree(tryIdx+1); };
+  document.head.appendChild(s);
 })(0);
+// 再加载OrbitControls（从jsdelivr开始，失败换unpkg）
+function _3dLoadOrbit(tryIdx){
+  var cdnOrbit = [
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js',
+    'https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js'
+  ];
+  if(tryIdx >= cdnOrbit.length) return _3dFail();
+  var s = document.createElement('script');
+  s.src = cdnOrbit[tryIdx];
+  s.onload = function(){ window._3dInit(); };
+  s.onerror = function(){ _3dLoadOrbit(tryIdx+1); };
+  document.head.appendChild(s);
+}
+function _3dFail(){
+  var e = document.querySelector('#loading .lt');
+  if(e) e.innerHTML = '⚠️ 加载失败，请刷新重试<br><span style=\"font-size:10px;color:rgba(255,255,255,0.3)\">可尝试切换网络或复制到本地打开</span>';
+}
 </script>
 <script>
 function initApp() {
