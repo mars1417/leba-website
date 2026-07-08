@@ -1,0 +1,2145 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════════════════╗
+  ║                                                                                      ║
+  ║   🚀 NASA ARTEMIS 绕月任务 3D 电影级模拟 v5.0                                       ║
+  ║   ─────────────────────────────────────────────────────────────────────────           ║
+  ║   融合 taste 白玻3D液态审美 + 天使协作体系                                           ║
+  ║   Three.js WebGL | 程序化地球/月球纹理 | 7种电影镜头 | NRHO轨道 | 教育系统          ║
+  ║   适合：展示、教育、科普、儿童天文启蒙                                                ║
+  ║                                                                                      ║
+  ║   打开方式：浏览器直接打开（需要网络加载 Three.js CDN）                              ║
+  ║   另一台电脑：复制此文件 → 浏览器打开 → 自动加载                                     ║
+  ║                                                                                      ║
+  ╚══════════════════════════════════════════════════════════════════════════════════════╝
+  ═══════════════════════════════════════════════════════════════════════════════════════
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=3.0,user-scalable=yes">
+<meta name="description" content="NASA Artemis 绕月任务 3D 电影级模拟 — 沉浸式太空教育体验">
+<meta name="theme-color" content="#000000">
+<title>🚀 NASA Artemis 绕月任务 3D 电影级模拟 v5.0</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   全局基础样式
+   太空场景以纯黑为底色，UI 控件使用 taste 规范中的白玻3D液态风格
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  outline: none;
+}
+
+body {
+  background: #000;
+  overflow: hidden;
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  color: #ffffff;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   主 UI 容器 — 固定全屏，pointer-events:none 让点击穿透到 canvas
+   子元素需要交互的用 pointer-events:auto 恢复
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#ui {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   主标题 — 七彩渐变大字（taste 规范）
+   使用 -webkit-background-clip:text 实现文字渐变色
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#title {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: auto;
+  z-index: 20;
+}
+#title h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd700 20%, #00d4ff 45%, #7b2ff7 70%, #52c41a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 80px rgba(0, 212, 255, 0.12);
+  line-height: 1.3;
+}
+#title .sub {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.28);
+  letter-spacing: 4px;
+  margin-top: 2px;
+  font-weight: 300;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   白玻毛玻璃面板 — 通用组件
+   半透明背景 + backdrop-filter:blur 模拟磨砂玻璃效果
+   符合 taste 审美体系中的白玻3D液态标准
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* 面板入场动画 */
+.glass-panel.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   阶段信息卡片 — 居中位置，显示当前任务阶段的名称、描述和时间
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#pbox {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: auto;
+  z-index: 11;
+  padding: 12px 30px;
+  max-width: 92%;
+  min-width: 200px;
+  border-radius: 16px;
+}
+#pname {
+  font-size: 22px;
+  font-weight: 700;
+  color: #00d4ff;
+  text-shadow: 0 0 30px rgba(0, 212, 255, 0.35);
+  transition: color 0.6s ease;
+  line-height: 1.3;
+}
+#pdesc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 580px;
+  line-height: 1.8;
+  margin: 6px auto 0;
+  letter-spacing: 0.3px;
+}
+#pdate {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.22);
+  margin-top: 4px;
+  letter-spacing: 1.5px;
+  font-family: 'Courier New', 'Consolas', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   遥测面板 — 右上角，显示飞行时间/距离/速度/高度/轨道圈数/进度
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#dp {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px 16px;
+  min-width: 175px;
+  pointer-events: auto;
+  z-index: 15;
+}
+.dr {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.dr:last-child {
+  border: none;
+}
+.dl {
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.dv {
+  color: #00d4ff;
+  font-weight: 600;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-family: 'Courier New', 'Consolas', monospace;
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   相机标签 — 左上角，显示当前相机模式并可点击切换
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#clbl {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 10px;
+  color: rgba(0, 212, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.10);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 15;
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+#clbl:hover {
+  background: rgba(0, 212, 255, 0.10);
+  border-color: rgba(0, 212, 255, 0.25);
+  color: #00d4ff;
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   底部控制栏 — 白玻3D液态胶囊按钮组
+   使用 flex-wrap 在窄屏时自动换行
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#ctrls {
+  position: absolute;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  pointer-events: auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  z-index: 13;
+  padding: 6px 8px;
+  border-radius: 999px;
+}
+
+/* 胶囊按钮基类 */
+.cb {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  min-width: 42px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.3px;
+}
+
+/* 按钮悬停效果 — 上浮+发光边框 */
+.cb:hover {
+  background: rgba(0, 212, 255, 0.10);
+  border-color: rgba(0, 212, 255, 0.20);
+  color: #00d4ff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 212, 255, 0.10);
+}
+
+/* 按钮点击效果 — 微缩反馈 */
+.cb:active {
+  transform: scale(0.95);
+}
+
+/* 激活状态 — 儿童/知识按钮 */
+.cb.act {
+  background: rgba(0, 212, 255, 0.14);
+  border-color: rgba(0, 212, 255, 0.35);
+  color: #00d4ff;
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.06);
+}
+
+/* 按钮中的图标 */
+.cb .icon {
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   进度条 — 底部，可点击跳转，渐变色表示5个任务阶段
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#pbar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85%;
+  max-width: 760px;
+  pointer-events: auto;
+  z-index: 12;
+}
+
+/* 轨道 */
+#ptk {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: height 0.2s ease;
+  position: relative;
+}
+#ptk:hover {
+  height: 8px;
+}
+
+/* 填充条 — 5阶段渐变色 */
+#pfl {
+  height: 100%;
+  width: 0%;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    #ff6b6b 0%,
+    #ffa751 22%,
+    #21e1ff 45%,
+    #7b2ff7 68%,
+    #52c41a 100%
+  );
+  transition: width 0.08s linear;
+  position: relative;
+}
+
+/* 流光效果 */
+#pfl::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.20), transparent);
+  animation: shimmer 2s infinite linear;
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* 进度圆点指示器 */
+#pdot {
+  position: absolute;
+  top: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #66e0ff, #00aaff);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(0, 212, 255, 0.15);
+  transition: left 0.08s linear;
+  pointer-events: none;
+}
+
+/* 阶段标签 */
+#plbls {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.16);
+}
+.pl {
+  cursor: pointer;
+  transition: color 0.3s, text-shadow 0.3s;
+  padding: 3px 5px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+}
+.pl:hover {
+  color: #00d4ff;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+  background: rgba(0, 212, 255, 0.04);
+}
+.pl.act {
+  color: #00d4ff;
+  font-weight: 600;
+  text-shadow: 0 0 14px rgba(0, 212, 255, 0.10);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   任务完成徽章 — 任务进度100%时弹出，带缩放动画
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#badge {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  z-index: 100;
+  text-align: center;
+  opacity: 0;
+  transition: all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+#badge.show {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+#badge .glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 215, 0, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+  animation: badgeGlow 2.5s ease-in-out infinite alternate;
+}
+@keyframes badgeGlow {
+  0%   { opacity: 0.4; transform: translate(-50%, -50%) scale(0.8); }
+  100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.3); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   天体图例 — 左下角，显示地球/月球/太阳/轨迹的色标
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#legend {
+  position: absolute;
+  bottom: 106px;
+  left: 10px;
+  padding: 10px 14px;
+  pointer-events: auto;
+  z-index: 11;
+  font-size: 10px;
+  min-width: 105px;
+}
+#legend .item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+  color: rgba(255, 255, 255, 0.42);
+}
+#legend .item:last-child {
+  margin-bottom: 0;
+}
+#legend .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+  flex-shrink: 0;
+  transition: box-shadow 0.5s ease;
+}
+#legend .item:hover .dot {
+  box-shadow: 0 0 12px currentColor;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   知识面板 — 右下角，显示阶段相关的科学知识
+   默认隐藏，点击"知识"按钮后显示
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#edu {
+  position: absolute;
+  bottom: 106px;
+  right: 10px;
+  padding: 12px 16px;
+  max-width: 250px;
+  pointer-events: auto;
+  z-index: 11;
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.5);
+  display: none;
+}
+#edu .edu-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 5px;
+  letter-spacing: 0.5px;
+}
+#edu .edu-body {
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.5);
+}
+#edu .edu-fact {
+  font-size: 10px;
+  color: #ffd700;
+  margin-top: 5px;
+  padding: 7px 10px;
+  background: rgba(255, 215, 0, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.08);
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   键盘快捷键提示 — 帮助用户了解可用快捷键
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#keys {
+  position: absolute;
+  bottom: 106px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 9;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.08);
+  letter-spacing: 1.5px;
+  text-align: center;
+  display: none;
+}
+#keys kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  font-size: 8px;
+  margin: 0 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   加载画面 — Three.js 初始化期间显示
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+#loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  z-index: 1000;
+  transition: opacity 0.8s ease;
+}
+#loading.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+#loading .spinner {
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(255, 255, 255, 0.04);
+  border-top-color: #00d4ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 18px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#loading .lt {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+#loading .lt-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   儿童模式 — 放大所有字体和按钮
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+.cm #pname { font-size: 26px !important; }
+.cm #pdesc {
+  font-size: 16px !important;
+  line-height: 2.0 !important;
+}
+.cm .cb {
+  padding: 14px 24px !important;
+  font-size: 15px !important;
+  border-radius: 999px !important;
+  min-width: 50px !important;
+  min-height: 50px !important;
+}
+.cm #plbls { font-size: 10px !important; }
+.cm #dp { min-width: 200px !important; }
+.cm #title h1 { font-size: 34px !important; }
+.cm .dl { font-size: 10px !important; }
+.cm .dv { font-size: 15px !important; }
+.cm #legend { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   手机端自适应
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  #title h1 { font-size: 16px !important; letter-spacing: 2px !important; }
+  #pname { font-size: 15px !important; }
+  #pdesc { font-size: 10px !important; max-width: 280px !important; line-height: 1.5 !important; }
+  #dp {
+    min-width: 110px !important;
+    padding: 6px 10px !important;
+    top: auto !important;
+    bottom: 102px !important;
+    right: 6px !important;
+  }
+  #dp .dl { font-size: 7px !important; }
+  #dp .dv { font-size: 10px !important; }
+  #pbar { width: 94% !important; bottom: 12px !important; }
+  #ctrls { bottom: 48px !important; gap: 3px !important; padding: 4px 6px !important; }
+  .cb {
+    padding: 6px 10px !important;
+    font-size: 9px !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+  }
+  .cb .icon { font-size: 11px !important; margin-right: 2px !important; }
+  #legend { display: none !important; }
+  #pbox { padding: 8px 16px !important; top: 46px !important; max-width: 94% !important; }
+  #edu { max-width: 160px !important; padding: 8px 12px !important; font-size: 10px !important; }
+  #clbl { font-size: 8px !important; padding: 4px 8px !important; top: 6px !important; left: 6px !important; }
+  .pl { font-size: 7px !important; }
+}
+
+@media (max-width: 480px) {
+  #title h1 { font-size: 13px !important; letter-spacing: 1px !important; }
+  #pname { font-size: 12px !important; }
+  #pdesc { font-size: 9px !important; max-width: 160px !important; }
+  .cb { padding: 4px 8px !important; font-size: 8px !important; min-width: 26px !important; min-height: 26px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   扩展动画关键帧
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 脉冲环动画 */
+@keyframes pulseRing {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  50%  { transform: scale(1.2); opacity: 0.2; }
+  100% { transform: scale(0.8); opacity: 0.6; }
+}
+
+/* 呼吸光晕动画 */
+@keyframes breatheGlow {
+  0%, 100% { opacity: 0.3; filter: blur(4px); }
+  50%      { opacity: 0.6; filter: blur(8px); }
+}
+
+/* 滑动入场动画 */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 缩放入场动画 */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* 软闪烁动画 */
+@keyframes blinkSoft {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1.0; }
+}
+
+/* 淡入上浮动效 */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 阶段信息卡片入场交错 */
+.glass-panel { animation: fadeInUp 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) both; }
+.glass-panel:nth-child(2) { animation-delay: 0.1s; }
+.glass-panel:nth-child(3) { animation-delay: 0.2s; }
+
+/* 控制按钮入场交错弹簧效果 */
+.cb { animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cb:nth-child(1) { animation-delay: 0.05s; }
+.cb:nth-child(2) { animation-delay: 0.10s; }
+.cb:nth-child(3) { animation-delay: 0.15s; }
+.cb:nth-child(4) { animation-delay: 0.20s; }
+.cb:nth-child(5) { animation-delay: 0.25s; }
+.cb:nth-child(6) { animation-delay: 0.30s; }
+
+/* 进度标签入场交错 */
+.pl { animation: fadeInUp 0.5s ease both; }
+.pl:nth-child(1) { animation-delay: 0.05s; }
+.pl:nth-child(2) { animation-delay: 0.10s; }
+.pl:nth-child(3) { animation-delay: 0.15s; }
+.pl:nth-child(4) { animation-delay: 0.20s; }
+.pl:nth-child(5) { animation-delay: 0.25s; }
+
+/* 触屏设备按钮放大 */
+@media (hover: none) and (pointer: coarse) {
+  .cb { padding: 10px 20px !important; min-height: 48px !important; }
+  #ptk { height: 8px !important; }
+  .pl { padding: 6px 8px !important; font-size: 9px !important; }
+}
+
+/* Retina 屏幕优化 */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  .glass-panel { border-width: 0.5px; }
+}
+
+/* HUD 数据数值悬停高亮 */
+.dv:hover { color: #66eaff; text-shadow: 0 0 20px rgba(0,212,255,0.3); }
+
+/* 阶段名称微光效果 */
+#pname { position: relative; display: inline-block; }
+#pname::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 10%;
+  width: 80%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.15;
+}
+
+/* 按钮点击水波纹效果 */
+.cb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(0,212,255,0.1), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.cb:active::after { opacity: 1; }
+
+/* 加载状态动画增强 */
+#loading .spinner { border-width: 2px; }
+#loading .spinner::after {
+  content: '🌙';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+}
+
+/* 面板阴影深度区分 */
+#pbox.glass-panel { box-shadow: 0 8px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.10); }
+#dp.glass-panel { box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08); }
+#legend.glass-panel { box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+#edu.glass-panel { box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+/* 面板入场可见性辅助 */
+.glass-panel { will-change: transform, opacity; backface-visibility: hidden; }
+
+/* 底部信息淡入效果 */
+#about, div[style*="bottom:44px"] { animation: fadeInUp 2s ease 1s both; }
+
+/* 禁用文本选择的全站规则 */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* 为Three.js canvas保留全屏空间 */
+canvas { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<!-- ===== 加载画面 ===== -->
+<div id="loading">
+  <div style="text-align: center;">
+    <div class="lt-icon">🌙</div>
+    <div class="spinner"></div>
+    <div class="lt">正在构建月球轨道...</div>
+  </div>
+</div>
+
+<!-- ===== 主UI界面 ===== -->
+<div id="ui">
+  <!-- 主标题：七彩渐变色，使用 taste 规范 -->
+  <div id="title">
+    <h1>🚀 Artemis 绕月任务</h1>
+    <div class="sub">CINEMATIC 3D · NASA SLS · ORION · NRHO</div>
+  </div>
+
+  <!-- 阶段信息卡：显示当前任务阶段名称、描述、时间 -->
+  <div id="pbox" class="glass-panel">
+    <div id="pname">🚀 发射升空</div>
+    <div id="pdesc">SLS 火箭 4 台 RS-25 发动机 + 2 个固体助推器从肯尼迪航天中心 LC-39B 点火升空，总推力 880 万磅，8.8 分钟入轨</div>
+    <div id="pdate">2022-11-16 01:47 UTC</div>
+  </div>
+
+  <!-- 遥测面板：飞行时间/距地球/速度/高度/轨道圈数/进度 -->
+  <div id="dp" class="glass-panel">
+    <div class="dr"><span class="dl">⏱ 飞行时间</span><span class="dv" id="vT">D+00 00:00:00</span></div>
+    <div class="dr"><span class="dl">📏 距地球</span><span class="dv" id="vD">0 km</span></div>
+    <div class="dr"><span class="dl">💨 速度</span><span class="dv" id="vS">0.0 km/s</span></div>
+    <div class="dr"><span class="dl">📐 高度</span><span class="dv" id="vA">0 km</span></div>
+    <div class="dr"><span class="dl">🌀 轨道圈数</span><span class="dv" id="vO">0</span></div>
+    <div class="dr"><span class="dl">📊 进度</span><span class="dv" id="vP">0%</span></div>
+  </div>
+
+  <!-- 相机模式切换标签 -->
+  <div id="clbl" onclick="cycCam()">🎥 全局俯瞰</div>
+
+  <!-- 当前事件标签 -->
+  <div id="evt" style="position:absolute;top:116px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:11;font-size:9px;color:rgba(0,212,255,0.3);letter-spacing:0.5px;text-align:center;transition:opacity 0.5s;text-shadow:0 0 10px rgba(0,212,255,0.08)">
+    <span id="evtName">T-0 倒计时</span>
+  </div>
+
+  <!-- 天体图例 -->
+  <div id="legend" class="glass-panel">
+    <div style="color:rgba(255,255,255,0.5);font-weight:600;margin-bottom:6px;font-size:10px;letter-spacing:0.5px;">🌌 天体图例</div>
+    <div class="item"><div class="dot" style="background:#4a90d9;box-shadow:0 0 10px rgba(74,144,217,0.5)"></div>🌍 地球</div>
+    <div class="item"><div class="dot" style="background:#c0c0c0;box-shadow:0 0 8px rgba(192,192,192,0.3)"></div>🌙 月球</div>
+    <div class="item"><div class="dot" style="background:#ffd700;box-shadow:0 0 16px rgba(255,215,0,0.5)"></div>☀️ 太阳</div>
+    <div class="item"><div class="dot" style="background:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,0.4);width:4px;height:4px;border-radius:2px"></div>🚀 Orion 飞行轨迹</div>
+    <div class="item"><div class="dot" style="background:#ff6b6b;opacity:0.5;width:3px;height:3px"></div>🎯 NRHO 目标轨道</div>
+  </div>
+
+  <!-- 底部控制栏 -->
+  <div id="ctrls">
+    <button class="cb" id="bP" onclick="tPlay()"><span class="icon">⏸</span>暂停</button>
+    <button class="cb" id="bS" onclick="cycSpd()"><span class="icon">⏱</span>1×</button>
+    <button class="cb" id="bR" onclick="resetM()"><span class="icon">🔄</span>重置</button>
+    <button class="cb" id="bC2" onclick="cycCam()"><span class="icon">🎥</span>视角 <span id="camIdx" style="font-size:9px;opacity:0.4;margin-left:2px;">1/7</span></button>
+    <button class="cb" id="bC" onclick="tChild()"><span class="icon">👶</span>儿童</button>
+    <button class="cb" id="bE" onclick="tEdu()"><span class="icon">📖</span>知识</button>
+  </div>
+
+  <!-- 进度条 -->
+  <div id="pbar">
+    <div id="ptk" onclick="seekP(event)">
+      <div id="pfl"></div>
+      <div id="pdot" style="left:0%"></div>
+    </div>
+    <div id="plbls">
+      <span class="pl act" onclick="sP(0)">🚀发射</span>
+      <span class="pl" onclick="sP(1)">🌍→🌙</span>
+      <span class="pl" onclick="sP(2)">🌙绕月</span>
+      <span class="pl" onclick="sP(3)">🌙→🌍</span>
+      <span class="pl" onclick="sP(4)">🌊溅落</span>
+    </div>
+  </div>
+
+  <!-- 任务完成徽章 -->
+  <div id="badge">
+    <div class="glow"></div>
+    <div style="font-size:64px;margin-bottom:10px;filter:drop-shadow(0 0 40px rgba(255,215,0,0.3))">🏆</div>
+    <div style="font-size:30px;font-weight:800;background:linear-gradient(135deg,#ffd700 0%,#ffa751 50%,#ff6b6b 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px">任务完成</div>
+    <div style="font-size:14px;color:rgba(255,255,255,0.5);">Artemis I 绕月任务圆满成功</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.28);margin-top:5px;">🌊 太平洋溅落 · 2022-12-11 17:40 UTC</div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.12);margin-top:8px;">总飞行里程 2,250,000 km · 25天11小时36分钟 · 绕月6天</div>
+  </div>
+
+  <!-- 知识面板 -->
+  <div id="edu" class="glass-panel">
+    <div class="edu-title">📖 知识小站</div>
+    <div class="edu-body" id="eduText">Artemis I 是 NASA 新一代阿尔忒弥斯登月计划的首次无人测试飞行，SLS 火箭是人类有史以来最强大的运载火箭！</div>
+    <div class="edu-fact" id="eduFact">💡 SLS 起飞时 4 台 RS-25 发动机每秒消耗 1,500 升液氢，产生的推力相当于 13,400 架波音 747 全力起飞！</div>
+  </div>
+
+  <!-- 快捷键提示 -->
+  <div id="keys">快捷键：<kbd>Space</kbd> 暂停 · <kbd>C</kbd> 视角切换 · <kbd>R</kbd> 重置 · <kbd>1-5</kbd> 跳转阶段 · <kbd>K</kbd> 知识面板</div>
+
+  <!-- 底部版权/说明信息 -->
+  <div style="position:absolute;bottom:44px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:8;font-size:8px;color:rgba(255,255,255,0.06);letter-spacing:0.5px;text-align:center;white-space:nowrap">
+    NASA Artemis I · 3D Cinematic Simulation v5.0 · 2026 · Three.js程序化纹理 · NRHO轨道模拟 · 鼠标拖拽旋转/滚轮缩放
+    <br>程序化地球/月球纹理 · 菲涅尔大气辉光 · 7种电影视角 · 25个关键事件 · 5阶段教育知识 · 儿童友好模式 · 移动端自适应
+  </div>
+</div>
+
+<!-- ===== 引入 Three.js ===== -->
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script>
+/* ╔══════════════════════════════════════════════════════════════════════════════════════╗
+   ║                                                                                      ║
+   ║   ARTEMIS LUNAR MISSION v5.0 — 完整引擎                                              ║
+   ║   ─────────────────────────────────────────────────────────                           ║
+   ║   Three.js WebGL | 程序化纹理生成 | 电影镜头系统 | NRHO轨道模拟                      ║
+   ║   教育知识系统 | 儿童友好模式 | 7种相机视角 | 尾焰粒子系统                           ║
+   ║                                                                                      ║
+   ║   渲染引擎: Three.js r128 (CDN)                                                      ║
+   ║   纹理生成: 程序化 Value Noise + FBM (分形布朗运动) × 5层叠加                       ║
+   ║   轨道数学: 基于 NRHO (近直线晕轨道) 的近似参数建模                                 ║
+   ║   相机系统: 7预设视角含平滑过渡 (Lerp 插值)                                         ║
+   ║   粒子系统: 100个尾焰粒子 + 800点飞行轨迹 + 2000颗小行星带                          ║
+   ║   星体系统: 10000颗闪烁恒星 + 4000颗远星 + 1500颗彩色星云粒子                      ║
+   ║   大气效果: 菲涅尔 Shader 实现地球边缘辉光 + 三层太阳光晕                          ║
+   ║   教育系统: 25个任务事件时间线 + 5阶段知识 + 8条冷知识轮播                         ║
+   ║   交互方式: 鼠标拖拽旋转 / 滚轮缩放 / 右键平移 / 键盘快捷键                        ║
+   ║   移动端  : 自适应布局 + 触屏友好间距 + 手势兼容                                    ║
+   ║   儿童模式: 大字体 + 简化描述 + 趣味语言                                             ║
+   ║                                                                                      ║
+   ╚══════════════════════════════════════════════════════════════════════════════════════╝
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │ 注：所有时间坐标基于 Artemis I 实际任务时间线（2022年11月16日~12月11日）              │
+  │ 轨道模拟基于 NRHO（近直线晕轨道）近似数学建模，非精确星历数据                         │
+  │ 地球和月球纹理通过程序化噪声函数实时生成，无需外部图片资源                            │
+  │                                                                                      │
+  │ 【关于阿尔忒弥斯计划】                                                                │
+  │ 阿尔忒弥斯（Artemis）是 NASA 的新一代登月计划，以希腊神话月亮女神命名。              │
+  │ 她是阿波罗（Apollo）的孪生姐姐——NASA 用姐弟命名两代登月计划，寓意传承与突破。        │
+  │ Artemisi I（2022.11-12）：无人绕月测试飞行，验证 SLS 火箭和 Orion 飞船的可靠性。     │
+  │ Artemis II（计划2025）：载人绕月飞行，4名宇航员测试飞船生命支持系统。                │
+  │ Artemis III（计划2027）：首次女性和下一位男性登陆月球南极，寻找水冰资源。            │
+  │ 远期目标：2030年代在月球表面建立永久基地，利用月壤3D打印建筑，实现月球城市。        │
+  │ 关键技术：SLS Block 1/1B/2 系列火箭、Orion 飞船、Gateway 月球门户空间站、           │
+  │ HLS（人类登陆系统，SpaceX Starship 选型）、月面可穿戴设备、原位资源利用(ISRU)。      │
+  │                                                                                      │
+  │ 【关于 NRHO 轨道】                                                                    │
+  │ NRHO（Near-Rectilinear Halo Orbit，近直线晕轨道）是 NASA 为 Gateway 空间站选定的      │
+  │ 绕月轨道。它利用地球和月球的引力平衡点（拉格朗日点 L1/L2），达到极致燃料经济性。     │
+  │ 近月点仅130km，远月点约70,000km——轨道周期约7天。                                     │
+  │ 这种轨道的优势是：①燃料消耗低（仅需少量轨道保持推进剂）                              │
+  │ ②始终与地球保持通信（不中断）③方便往返地球和月球表面。                               │
+  │                                                                                      │
+  │ 【关于 SLS 火箭】                                                                     │
+  │ SLS（Space Launch System，空间发射系统）是 NASA 研发的超重型运载火箭，                  │
+  │ 人类有史以来推力最大的火箭之一。Block 1 型高98米，起飞质量2,600吨，                   │
+  │ 其中85%是推进剂。芯级4台 RS-25 发动机（航天飞机同款改进型）提供约200万磅推力，       │
+  │ 两侧固体助推器各提供360万磅推力，总推力880万磅。                                       │
+  │ Block 1B 型将升级 Exploration Upper Stage，提升运力至地月转移轨道45吨。              │
+  │ 每个 RS-25 发动机造价约4000万美元，使用液氢+液氧燃料，比冲452秒。                   │
+  │                                                                                      │
+  │ 【关于 Orion 飞船】                                                                   │
+  │ Orion 是 NASA 的新一代载人飞船，由乘员舱（Lockheed Martin制造）和服务舱              │
+  │ （欧洲空中客车/ESA制造）两部分组成。可搭载4名宇航员，总质量约25吨。                  │
+  │ 乘员舱容积约8.95立方米，比阿波罗指令舱大2.5倍。服务舱提供推进、电力、热控和         │
+  │ 储存，发动机燃烧四氧化二氮+联氨，产生7,500N推力。太阳能板展开后翼展19米，           │
+  │ 发电量11kW。再入时Avcoat隔热盾经受2800°C高温烧蚀保护。                              │
+  │                                                                                      │
+  └─────────────────────────────────────────────────────────────────────────────────────┘
+*/
+"use strict";
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第一部分：5阶段任务数据
+// 包含：阶段名称、描述（普通版+儿童版）、时间、颜色、教育内容、冷知识
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var PH = [
+  {
+    n: '🚀 发射升空',
+    d: 'SLS 火箭 4 台 RS-25 发动机 + 2 个固体助推器从肯尼迪航天中心 LC-39B 点火升空，总推力 880 万磅，8.8 分钟入轨',
+    dt: '2022-11-16 01:47 UTC',
+    c: [1.0, 0.42, 0.42],
+    cc: '大火箭轰隆隆飞上天啦！好大好大的火，比 100 个烟花还壮观！火箭越来越高，飞到了云层上面！',
+    edu: 'Artemis I 是 NASA 阿尔忒弥斯计划的首次任务，SLS Block 1 火箭高 98 米，比自由女神像（93米）还高！Orion 飞船搭载了 3 个假人（Moonikin Campos、Helga、Zohar）测试辐射和振动。',
+    fact: '💡 SLS 火箭起飞质量 2,600 吨——相当于 40 辆主战坦克的重量，其中 85% 是液氢液氧和固体推进剂！'
+  },
+  {
+    n: '🌍→🌙 地月转移',
+    d: 'Orion 飞船与 ICPS 上级分离，展开太阳能板，服务推进系统点火，踏上 38 万公里奔月之旅',
+    dt: '2022-11-21 12:00 UTC',
+    c: [1.0, 0.65, 0.32],
+    cc: '飞船飞呀飞，飞向月亮！离地球越来越远，地球变得越来越小，从蓝色大球变成蓝色小点！',
+    edu: 'Orion 飞船由乘员舱+服务舱组成，可搭载 4 名宇航员，服务舱由欧洲航天局（ESA）制造，提供推进、电力和热控。太阳能板展开后翼展 19 米！',
+    fact: '💡 地月平均距离 384,400 公里——如果开车以 100km/h 要开 160 天才能到！如果坐飞机要飞 20 天！'
+  },
+  {
+    n: '🌙 绕月飞行',
+    d: 'Orion 进入逆行远距离轨道(DRO)，最近距月表仅 130km，飞越阿波罗登月点，绕月 6 天采集科学数据',
+    dt: '2022-11-25~12-01',
+    c: [0.13, 0.88, 1.0],
+    cc: '飞船绕着月亮转圈圈，好近好近！连月亮上的坑坑洼洼都看得清清楚楚，像一块大大的奶酪！',
+    edu: 'NRHO（近直线晕轨道）是 NASA 为月球门户空间站选定的轨道，利用地球和月球引力达到极致的燃料经济性，仅靠引力就能维持轨道稳定。',
+    fact: '💡 月球表面有超过 50 万个直径大于 1 公里的陨石坑！最大的南极-艾特肯盆地直径 2,500 公里，深 13 公里！'
+  },
+  {
+    n: '🌙→🌍 返回地球',
+    d: '服务舱发动机点火脱离月球引力，踏上归途，11km/s 再入大气层，隔热盾承受 2800°C 高温，如一颗流星划破天际',
+    dt: '2022-12-11',
+    c: [0.48, 0.18, 0.97],
+    cc: '飞船要回家啦！冲进大气层变成一颗大火球，好热好热，像一颗流星划过天空！',
+    edu: '再入速度 11km/s 是子弹速度的 10 倍！Orion 的 Avcoat 隔热盾通过烧蚀带走热量——材料烧掉带走高温，保护飞船不被烧毁。',
+    fact: '💡 再入大气层时飞船周围等离子体温度高达 2,800°C——比火山岩浆（1,200°C）还要热 2 倍多！'
+  },
+  {
+    n: '🌊 太平洋溅落',
+    d: '三部主降落伞在 7,600m 高度展开，Orion 以 8m/s 速度溅落太平洋，回收舰 USS Portland 2 小时内完成回收，任务圆满成功！',
+    dt: '2022-12-11 17:40 UTC',
+    c: [0.14, 0.53, 0.14],
+    cc: '飞船落在海里啦！三朵大大的降落伞像花朵一样张开，飞船稳稳地漂在海面上，太棒了！',
+    edu: '溅落回收是美国载人航天的光荣传统——从水星计划（1961年）、双子星计划、阿波罗计划到今天的 Orion，近 60 年一贯制的安全回收方式。',
+    fact: '💡 Artemis I 共飞行 25 天 11 小时 36 分钟，绕月飞行 6 天，总里程 225 万公里——相当于地球到月球来回近 3 趟！'
+  }
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 详细任务事件时间线（25个关键事件，与进度关联）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var MISSION_EVENTS = [
+  { t: 0.000, name: 'T-0 倒计时', desc: 'SLS 火箭发动机点火序列启动' },
+  { t: 0.005, name: 'T+0 起飞', desc: '4台RS-25发动机+2个固体助推器点火，880万磅推力' },
+  { t: 0.010, name: 'T+2分钟 最大动压', desc: '火箭穿过最大动压区，结构承受最大空气动力载荷' },
+  { t: 0.020, name: 'T+3分钟 固体助推器分离', desc: '固体助推器燃尽分离，落入大西洋' },
+  { t: 0.030, name: 'T+5分钟 整流罩分离', desc: 'Orion飞船周围保护罩分离，暴露在太空中' },
+  { t: 0.040, name: 'T+8分钟 主发动机关机', desc: 'RS-25发动机关机，芯级分离' },
+  { t: 0.050, name: 'T+10分钟 ICPS点火', desc: 'ICPS上级首次点火，进入初始轨道' },
+  { t: 0.060, name: 'T+15分钟 入轨', desc: 'Orion进入近地轨道，高度约185km' },
+  { t: 0.070, name: 'T+1小时30分 二次点火', desc: 'ICPS第二次点火，提升轨道速度' },
+  { t: 0.080, name: 'T+2小时 地月转移', desc: 'ICPS分离，Orion服务舱接管控制' },
+  { t: 0.090, name: 'D+1 深空机动', desc: '服务舱发动机进行中途轨道修正' },
+  { t: 0.120, name: 'D+3 地球照片', desc: 'Orion拍摄标志性地球照片——蓝色弹珠' },
+  { t: 0.180, name: 'D+4 飞越阿波罗登月点', desc: '飞船飞越阿波罗11-17号登月点' },
+  { t: 0.240, name: 'D+5 月球背面', desc: '飞船飞到月球背面，与地球通信中断约30分钟' },
+  { t: 0.300, name: 'D+6 进入NRHO轨道', desc: '服务舱发动机点火，进入近直线晕轨道' },
+  { t: 0.380, name: 'D+8 绕月第1圈', desc: '完成第一圈绕月飞行' },
+  { t: 0.430, name: 'D+10 绕月第2圈', desc: '最近距离月表130km' },
+  { t: 0.480, name: 'D+12 科学采集', desc: '辐射监测仪、星敏感器持续工作' },
+  { t: 0.530, name: 'D+14 绕月第3圈', desc: '遥测数据显示飞船状态优良' },
+  { t: 0.580, name: 'D+16 绕月第4圈', desc: '完成第4圈——月球全景拍摄' },
+  { t: 0.630, name: 'D+18 服务舱发动机点火', desc: '脱离月球轨道，踏上归途' },
+  { t: 0.690, name: 'D+20 中途修正', desc: '调整轨道方向对准地球再入走廊' },
+  { t: 0.780, name: 'D+23 飞越地球', desc: '以11km/s接近地球，摄像机开启' },
+  { t: 0.870, name: 'D+25 再入大气层', desc: '隔热盾承受2800°C等离子体高温' },
+  { t: 0.920, name: 'T+25天11h36m 溅落', desc: '三顶降落伞展开，太平洋溅落，任务完成!' }
+];
+
+// 8条额外冷知识（知识面板轮播用，每8秒切换一条）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var FUN_FACTS = [
+  '阿尔忒弥斯（Artemis）是希腊神话的月亮女神，也是阿波罗（Apollo）的孪生姐姐——NASA 用姐弟命名两代登月计划真是太妙了！',
+  'Artemis I 最远点距地球 432,210 公里——打破阿波罗 13 号 401,056 公里的人类载人航天器最远距离纪录！',
+  'Orion 的太阳能板展开后翼展 19 米，发电量 11 kW，足够 2 个家庭日常照明和家电使用。',
+  '月球门户（Gateway）空间站将在 NRHO 轨道上组装建造——Artemis IV 任务将开始对接测试！',
+  'Artemis III 计划 2027 年搭载宇航员登陆月球南极，寻找水冰资源，为未来月球基地做准备！',
+  'NASA 计划 2030 年代在月球表面建立永久基地——利用月壤 3D 打印建筑，真正的人类月球城市！',
+  'Orion 服务舱的发动机燃烧四氧化二氮+联氨，产生 7,500 N 推力，由欧洲空中客车公司制造。',
+  'Artemis 一代宇航员中将包含第一位女性登月者——人类在月球上的第 13 个人将是一位女性！'
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第二部分：Three.js 场景初始化
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+// --- 创建场景、相机、渲染器 ---
+var scene = new THREE.Scene();
+
+// 透视相机：50°视场角，宽高比自适应，近裁面0.01，远裁面2000
+var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 2000);
+camera.position.set(18, 10, 22);
+
+// WebGL渲染器：开启抗锯齿和阴影
+var renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false,
+  powerPreference: 'high-performance'
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+// --- 轨道控制器：支持鼠标拖拽旋转/缩放 ---
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.10;
+controls.minDistance = 2;
+controls.maxDistance = 120;
+controls.autoRotate = false;
+controls.autoRotateSpeed = 0.4;
+controls.target.set(0, 0, 0);
+controls.zoomSpeed = 0.8;
+controls.rotateSpeed = 0.5;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第三部分：光照系统
+// 主光源（模拟太阳）+ 环境光 + 补光 + 边缘光
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var sunLight = new THREE.DirectionalLight(0xffeedd, 2.2);
+sunLight.position.set(50, 25, 40);
+sunLight.castShadow = true;
+scene.add(sunLight);
+
+var ambLight = new THREE.AmbientLight(0x224466, 0.12);
+scene.add(ambLight);
+
+var fillLight = new THREE.DirectionalLight(0x4488ff, 0.25);
+fillLight.position.set(-30, 8, -30);
+scene.add(fillLight);
+
+var rimLight = new THREE.DirectionalLight(0xff8844, 0.18);
+rimLight.position.set(-10, -30, 20);
+scene.add(rimLight);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第四部分：恒星场（深沉璀璨星空）
+// 第一层：10000颗闪烁的恒星，带轻微颜色变化（暖/冷/白）
+// 第二层：4000颗微光远星，作为背景深度
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var starGeom = new THREE.BufferGeometry();
+var starCnt = 10000;
+var starPos = new Float32Array(starCnt * 3);
+var starSz = new Float32Array(starCnt);
+var starTw = new Float32Array(starCnt);
+var starColors = new Float32Array(starCnt * 3);
+
+for (var i = 0; i < starCnt; i++) {
+  var r = 150 + Math.random() * 400;
+  var theta = Math.random() * Math.PI * 2;
+  var phi = Math.acos(2 * Math.random() - 1);
+  starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starPos[i * 3 + 2] = r * Math.cos(phi);
+  starSz[i] = 0.1 + Math.random() * 2.0;
+  starTw[i] = Math.random() * Math.PI * 2;
+  // 5%暖色恒星 / 5%冷色恒星 / 90%白色
+  var tint = Math.random();
+  if (tint < 0.05) {
+    starColors[i * 3] = 1.0; starColors[i * 3 + 1] = 0.8; starColors[i * 3 + 2] = 0.5;
+  } else if (tint < 0.10) {
+    starColors[i * 3] = 0.6; starColors[i * 3 + 1] = 0.8; starColors[i * 3 + 2] = 1.0;
+  } else {
+    starColors[i * 3] = 1.0; starColors[i * 3 + 1] = 1.0; starColors[i * 3 + 2] = 1.0;
+  }
+}
+starGeom.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeom.setAttribute('size', new THREE.BufferAttribute(starSz, 1));
+starGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+
+var starMat = new THREE.PointsMaterial({
+  size: 0.5,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.9,
+  vertexColors: true
+});
+var stars = new THREE.Points(starGeom, starMat);
+scene.add(stars);
+
+// 第二层：4000颗远星
+var starGeom2 = new THREE.BufferGeometry();
+var starCnt2 = 4000;
+var starPos2 = new Float32Array(starCnt2 * 3);
+for (var i = 0; i < starCnt2; i++) {
+  var r = 600 + Math.random() * 600;
+  var theta = Math.random() * Math.PI * 2;
+  var phi = Math.acos(2 * Math.random() - 1);
+  starPos2[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  starPos2[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starPos2[i * 3 + 2] = r * Math.cos(phi);
+}
+starGeom2.setAttribute('position', new THREE.BufferAttribute(starPos2, 3));
+var starMat2 = new THREE.PointsMaterial({
+  color: 0x8888bb,
+  size: 0.12,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.25
+});
+var stars2 = new THREE.Points(starGeom2, starMat2);
+scene.add(stars2);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第五部分：太阳（带多层光晕和镜头光斑粒子）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var sunObj = new THREE.Mesh(
+  new THREE.SphereGeometry(2.5, 48, 48),
+  new THREE.MeshBasicMaterial({ color: 0xffdd44 })
+);
+sunObj.position.set(60, 15, 40);
+scene.add(sunObj);
+
+// 三层光晕：由内到外，透明度递减
+var g1 = new THREE.Mesh(
+  new THREE.SphereGeometry(4.5, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.12 })
+);
+g1.position.copy(sunObj.position); scene.add(g1);
+
+var g2 = new THREE.Mesh(
+  new THREE.SphereGeometry(7, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.05 })
+);
+g2.position.copy(sunObj.position); scene.add(g2);
+
+var g3 = new THREE.Mesh(
+  new THREE.SphereGeometry(12, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.02 })
+);
+g3.position.copy(sunObj.position); scene.add(g3);
+
+// 镜头光斑粒子：围绕太阳随机分布
+var flGeom = new THREE.BufferGeometry();
+var flCnt = 300;
+var flPos = new Float32Array(flCnt * 3);
+for (var i = 0; i < flCnt; i++) {
+  var a = Math.random() * Math.PI * 2;
+  var r2 = 2 + Math.random() * 8;
+  flPos[i * 3] = Math.cos(a) * r2;
+  flPos[i * 3 + 1] = Math.sin(a) * r2 * 0.3;
+  flPos[i * 3 + 2] = (Math.random() - 0.5) * 3;
+}
+flGeom.setAttribute('position', new THREE.BufferAttribute(flPos, 3));
+var flMat = new THREE.PointsMaterial({
+  color: 0xffaa44,
+  size: 0.15,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.20
+});
+var flare = new THREE.Points(flGeom, flMat);
+flare.position.copy(sunObj.position);
+scene.add(flare);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第六部分：噪声工具函数（程序化纹理生成基础）
+// 使用 Value Noise + FBM（分形布朗运动）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function hash2(ix, iy) {
+  var h = ix * 374761393 + iy * 668265263;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return (h & 0x7fffffff) / 0x7fffffff;
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function sNoise(x, y) {
+  var ix = Math.floor(x), iy = Math.floor(y);
+  var fx = x - ix, fy = y - iy;
+  return lerp(
+    lerp(hash2(ix, iy), hash2(ix + 1, iy), fx),
+    lerp(hash2(ix, iy + 1), hash2(ix + 1, iy + 1), fx),
+    fy
+  );
+}
+
+function fbm(x, y, oct) {
+  var v = 0, a = 1, f = 1;
+  for (var i = 0; i < oct; i++) {
+    v += a * sNoise(x * f, y * f);
+    f *= 2.2;
+    a *= 0.5;
+  }
+  return v;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第七部分：程序化地球纹理 (1024x512)
+// 使用分形噪声模拟大陆/海洋/山地/极地冰盖
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function genEarthTex(w, h) {
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var ctx = c.getContext('2d');
+  var d = ctx.createImageData(w, h);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var u = x / w, v = y / h;
+      var lat = (v - 0.5) * Math.PI, lon = u * Math.PI * 2;
+      var nx = Math.cos(lon) * Math.cos(lat), ny = Math.sin(lat), nz = Math.sin(lon) * Math.cos(lat);
+      var sc = 2.4;
+      var n = (fbm(nx * sc + 100, ny * sc + 200, 4) + fbm(nz * sc + 300, nx * sc + 400, 4) * 0.6) / 1.6;
+      var thr = 0.40;
+      var i = (y * w + x) * 4;
+      if (n < thr) {
+        // 海洋
+        var dep = (thr - n) / thr;
+        d[i] = 8 + 25 * (1 - dep);
+        d[i + 1] = 25 + 55 * (1 - dep);
+        d[i + 2] = 70 + 50 * (1 - dep);
+        // 浅海/海岸
+        if (n > thr - 0.08) {
+          var co = (thr - n) / 0.08;
+          d[i] = 25 + co * 35;
+          d[i + 1] = 60 + co * 70;
+          d[i + 2] = 120 + co * 45;
+        }
+      } else {
+        // 陆地
+        var hgt = (n - thr) / (1 - thr);
+        if (hgt < 0.10) {
+          // 海滩/沙地
+          d[i] = 90 + 70 * hgt * 10;
+          d[i + 1] = 120 + 40 * hgt * 10;
+          d[i + 2] = 55 + 35 * hgt * 10;
+        } else if (hgt < 0.30) {
+          // 森林/草地
+          var g = (hgt - 0.10) / 0.20;
+          d[i] = 20 + 25 * g;
+          d[i + 1] = 70 + 30 * (1 - g);
+          d[i + 2] = 20 + 5 * g;
+        } else if (hgt < 0.55) {
+          // 高地
+          d[i] = 70 + 90 * (hgt - 0.30) / 0.25;
+          d[i + 1] = 100 + 55 * (hgt - 0.30) / 0.25;
+          d[i + 2] = 35 + 15 * (hgt - 0.30) / 0.25;
+        } else {
+          // 高山/雪线
+          var sn = (hgt - 0.55) / 0.45;
+          d[i] = 140 + 100 * sn;
+          d[i + 1] = 130 + 110 * sn;
+          d[i + 2] = 100 + 140 * sn;
+        }
+        // 极地冰盖
+        if (Math.abs(lat) > 1.12) {
+          var ice = (Math.abs(lat) - 1.12) / 0.45;
+          d[i] = d[i] * (1 - ice) + 210 * ice;
+          d[i + 1] = d[i + 1] * (1 - ice) + 215 * ice;
+          d[i + 2] = d[i + 2] * (1 - ice) + 230 * ice;
+        }
+      }
+      d[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(d, 0, 0);
+  return new THREE.CanvasTexture(c);
+}
+var earthTex = genEarthTex(1024, 512);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第八部分：地球（含云层和大气辉光）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var earth = new THREE.Mesh(
+  new THREE.SphereGeometry(2.0, 72, 72),
+  new THREE.MeshPhongMaterial({
+    map: earthTex,
+    specular: 0x224466,
+    shininess: 12
+  })
+);
+earth.position.set(-9, 0, 0);
+scene.add(earth);
+
+// --- 云层纹理（程序化生成） ---
+var cloudCan = document.createElement('canvas');
+cloudCan.width = 512; cloudCan.height = 256;
+var cloudCtx = cloudCan.getContext('2d');
+var cd = cloudCtx.createImageData(512, 256);
+for (var y = 0; y < 256; y++) {
+  for (var x = 0; x < 512; x++) {
+    var u = x / 512, v = y / 256;
+    var lat = (v - 0.5) * Math.PI, lon = u * Math.PI * 2;
+    var nx = Math.cos(lon) * Math.cos(lat), ny = Math.sin(lat), nz = Math.sin(lon) * Math.cos(lat);
+    var n = fbm(nx * 4 + 500, ny * 4 + 500, 3);
+    var cloud = n > 0.55 ? Math.min(1, (n - 0.55) / 0.30) : 0;
+    var i = (y * 512 + x) * 4;
+    cd[i] = 255; cd[i + 1] = 255; cd[i + 2] = 255;
+    cd[i + 3] = Math.floor(cloud * 180);
+  }
+}
+cloudCtx.putImageData(cd, 0, 0);
+var cloudTex = new THREE.CanvasTexture(cloudCan);
+
+var clouds = new THREE.Mesh(
+  new THREE.SphereGeometry(2.03, 48, 48),
+  new THREE.MeshPhongMaterial({
+    map: cloudTex,
+    transparent: true,
+    opacity: 0.20,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+);
+clouds.position.copy(earth.position);
+scene.add(clouds);
+
+// --- 大气辉光（背面渲染，Shader实现菲涅尔效果） ---
+var atmoMat = new THREE.ShaderMaterial({
+  vertexShader:
+    'varying vec3 vN;' +
+    'void main(){' +
+    '  vN=normalize(normalMatrix*normal);' +
+    '  gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);' +
+    '}',
+  fragmentShader:
+    'varying vec3 vN;' +
+    'void main(){' +
+    '  float i=pow(0.65-dot(vN,vec3(0,0,1.0)),3.0);' +
+    '  gl_FragColor=vec4(0.2,0.5,1.0,i*0.7);' +
+    '}',
+  transparent: true,
+  side: THREE.BackSide,
+  depthWrite: false
+});
+var atmo = new THREE.Mesh(new THREE.SphereGeometry(2.25, 48, 48), atmoMat);
+atmo.position.copy(earth.position);
+scene.add(atmo);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第九部分：程序化月球纹理（带陨石坑和辐射纹）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function genMoonTex(w, h) {
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var ctx = c.getContext('2d');
+  var d = ctx.createImageData(w, h);
+  // 预生成50个陨石坑数据
+  var craters = [];
+  for (var ci = 0; ci < 50; ci++) {
+    craters.push({
+      theta: Math.random() * Math.PI * 2,
+      phi: Math.acos(2 * Math.random() - 1),
+      rad: 0.02 + Math.random() * 0.15,
+      depth: 0.2 + Math.random() * 0.8,
+      hasRays: Math.random() > 0.7
+    });
+  }
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var u = x / w, v = y / h;
+      var lat = (v - 0.5) * Math.PI, lon = u * Math.PI * 2;
+      var nx = Math.cos(lon) * Math.cos(lat), ny = Math.sin(lat), nz = Math.sin(lon) * Math.cos(lat);
+      var base = fbm(nx * 3 + 200, ny * 3 + 300, 5);
+      var craterVal = 0, rayVal = 0;
+      for (var ci = 0; ci < craters.length; ci++) {
+        var cr = craters[ci];
+        var dot2 = nx * Math.cos(cr.theta) * Math.sin(cr.phi) +
+                   ny * Math.cos(cr.phi) +
+                   nz * Math.sin(cr.theta) * Math.sin(cr.phi);
+        if (dot2 > 1 - cr.rad) {
+          var edge = (1 - dot2) / cr.rad;
+          var dep = Math.sin(edge * Math.PI) * cr.depth * 0.35;
+          craterVal = Math.max(craterVal, dep);
+          // 辐射纹
+          if (cr.hasRays && edge < 0.3) {
+            var rayStr = (0.3 - edge) / 0.3 * 0.2;
+            if (sNoise(u * 50 + ci, v * 50 + ci * 3) > 0.4) {
+              rayVal = Math.max(rayVal, rayStr);
+            }
+          }
+        }
+      }
+      var val = base * (0.50 + craterVal * 0.50) + rayVal;
+      var b = Math.floor(100 + val * 155);
+      if (base > 0.7) b = Math.floor(b * 0.80);
+      var i = (y * w + x) * 4;
+      d[i] = b; d[i + 1] = b; d[i + 2] = b;
+      d[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(d, 0, 0);
+  return new THREE.CanvasTexture(c);
+}
+var moonTex = genMoonTex(1024, 512);
+
+var moonObj = new THREE.Mesh(
+  new THREE.SphereGeometry(0.95, 64, 64),
+  new THREE.MeshPhongMaterial({
+    map: moonTex,
+    specular: 0x222222,
+    shininess: 6
+  })
+);
+moonObj.position.set(11, 0, 0);
+scene.add(moonObj);
+
+// 月球轨道环（半透明引导线）
+var oPts = [];
+for (var i = 0; i <= 128; i++) {
+  var t = i / 128;
+  var a = 0.000 + 5.0 * t - 2.0 * t * t;
+  oPts.push(new THREE.Vector3(
+    Math.cos(a * Math.PI * 2) * 11,
+    Math.sin(a * Math.PI * 2) * 1.8,
+    Math.sin(a * Math.PI * 2) * 3.5
+  ));
+}
+var oLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(oPts),
+  new THREE.LineBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.03 })
+);
+scene.add(oLine);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十部分：Orion 飞船（精细几何模型）
+// 包含：乘员舱、服务舱、对接环、太阳能板×2、天线、RCS×4、主发动机喷管、隔热盾
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var craft = new THREE.Group();
+
+// --- 乘员舱（锥形） ---
+var crewMod = new THREE.Mesh(
+  new THREE.ConeGeometry(0.28, 0.38, 20),
+  new THREE.MeshPhongMaterial({ color: 0xdddddd, specular: 0x444444, shininess: 50 })
+);
+crewMod.rotation.x = Math.PI / 2;
+crewMod.position.z = 0.12;
+craft.add(crewMod);
+
+// --- 服务舱（圆柱体） ---
+var servMod = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.24, 0.24, 0.32, 20),
+  new THREE.MeshPhongMaterial({ color: 0x777777, specular: 0x555555, shininess: 30 })
+);
+servMod.position.z = -0.10;
+craft.add(servMod);
+
+// --- 对接环 ---
+var dockRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.12, 0.025, 8, 16),
+  new THREE.MeshPhongMaterial({ color: 0x444444, metal: true })
+);
+dockRing.position.set(0, 0, 0.32);
+dockRing.rotation.x = Math.PI / 2;
+craft.add(dockRing);
+
+// --- 太阳能板×2 ---
+function makePanel(xOff) {
+  var g = new THREE.Group();
+  var armMat = new THREE.MeshPhongMaterial({ color: 0x555555 });
+  var pnMat = new THREE.MeshPhongMaterial({
+    color: 0x182850,
+    specular: 0x224488,
+    shininess: 120,
+    emissive: 0x061228,
+    emissiveIntensity: 0.03
+  });
+  // 连接臂
+  var arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.28), armMat);
+  arm.position.x = xOff * 0.12;
+  arm.rotation.z = xOff * Math.PI / 2;
+  g.add(arm);
+  // 面板
+  var pn = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.006), pnMat);
+  pn.position.set(xOff * 0.32, 0, 0);
+  pn.rotation.z = xOff * 0.12;
+  g.add(pn);
+  // 网格线
+  var grMat = new THREE.LineBasicMaterial({ color: 0x2a4a8a, transparent: true, opacity: 0.15 });
+  for (var gi = 0; gi < 5; gi++) {
+    var gp = [
+      new THREE.Vector3(xOff * 0.32 - 0.18 + gi * 0.09, -0.068, 0.005),
+      new THREE.Vector3(xOff * 0.32 - 0.18 + gi * 0.09, 0.068, 0.005)
+    ];
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(gp), grMat));
+  }
+  return g;
+}
+craft.add(makePanel(1));
+craft.add(makePanel(-1));
+
+// --- 高增益天线 ---
+var antMat = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.10, 4), antMat);
+ant.position.set(0, 0.24, 0.22);
+craft.add(ant);
+var antBall = new THREE.Mesh(
+  new THREE.SphereGeometry(0.018, 10, 10),
+  new THREE.MeshPhongMaterial({ color: 0xdddddd })
+);
+antBall.position.set(0, 0.29, 0.22);
+craft.add(antBall);
+
+// --- RCS 推进器（4个） ---
+var rcsMat = new THREE.MeshPhongMaterial({ color: 0x666666, metal: true });
+for (var ri = 0; ri < 4; ri++) {
+  var ra = ri * Math.PI / 2;
+  var rcs = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.015, 6), rcsMat);
+  rcs.position.set(Math.cos(ra) * 0.22, Math.sin(ra) * 0.22, -0.24);
+  rcs.rotation.x = Math.PI / 2;
+  craft.add(rcs);
+}
+
+// --- 主发动机喷管 ---
+var noz = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.06, 0.10, 0.07, 16),
+  new THREE.MeshPhongMaterial({ color: 0x444444, metal: true })
+);
+noz.position.set(0, 0, -0.28);
+craft.add(noz);
+
+// --- 隔热盾底部 ---
+var heatShield = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.30, 0.30, 0.02, 20),
+  new THREE.MeshPhongMaterial({ color: 0x333333 })
+);
+heatShield.position.set(0, 0, 0.30);
+craft.add(heatShield);
+
+// --- 发动机尾焰光 ---
+var engLight = new THREE.PointLight(0xff8844, 0.3, 3);
+engLight.position.set(0, 0, -0.40);
+craft.add(engLight);
+
+// 飞船缩放
+craft.scale.set(1.2, 1.2, 1.2);
+scene.add(craft);
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十一部分：尾焰粒子系统（100个粒子）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var maxP = 100;
+var pPos = new Float32Array(maxP * 3);
+var pCol = new Float32Array(maxP * 3);
+var pSz = new Float32Array(maxP);
+var pV = new Float32Array(maxP * 3);
+var pLife = new Float32Array(maxP);
+for (var i = 0; i < maxP; i++) {
+  pPos[i * 3] = 0; pPos[i * 3 + 1] = 0; pPos[i * 3 + 2] = 0;
+  pCol[i * 3] = 1; pCol[i * 3 + 1] = 0.5; pCol[i * 3 + 2] = 0;
+  pSz[i] = 0; pLife[i] = 0;
+}
+var pGeom = new THREE.BufferGeometry();
+pGeom.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeom.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+pGeom.setAttribute('size', new THREE.BufferAttribute(pSz, 1));
+var pMat = new THREE.PointsMaterial({
+  size: 0.10,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.8,
+  vertexColors: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+var pSys = new THREE.Points(pGeom, pMat);
+scene.add(pSys);
+var pIdx = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十二部分：飞行轨迹线（800个点，跟随飞船实时记录）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var tLen = 800;
+var tBuf = new Float32Array(tLen * 3);
+var tGeom = new THREE.BufferGeometry();
+tGeom.setAttribute('position', new THREE.BufferAttribute(tBuf, 3));
+var tLine = new THREE.Line(
+  tGeom,
+  new THREE.LineBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.30 })
+);
+scene.add(tLine);
+var tIdx = 0, tFull = false;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// ─────── 小行星带（2000颗粒子位于地月之间） ───────
+var astGeom = new THREE.BufferGeometry();
+var astCnt = 2000;
+var astPos = new Float32Array(astCnt * 3);
+var astSz = new Float32Array(astCnt);
+var astCol = new Float32Array(astCnt * 3);
+for (var i = 0; i < astCnt; i++) {
+  var angle = Math.random() * Math.PI * 2;
+  var dist = 14 + Math.random() * 6;
+  var height = (Math.random() - 0.5) * 2.5;
+  astPos[i * 3] = Math.cos(angle) * dist;
+  astPos[i * 3 + 1] = height;
+  astPos[i * 3 + 2] = Math.sin(angle) * dist;
+  astSz[i] = 0.02 + Math.random() * 0.08;
+  var gray = 0.3 + Math.random() * 0.4;
+  astCol[i * 3] = gray + 0.1; astCol[i * 3 + 1] = gray; astCol[i * 3 + 2] = gray - 0.05;
+}
+astGeom.setAttribute('position', new THREE.BufferAttribute(astPos, 3));
+astGeom.setAttribute('size', new THREE.BufferAttribute(astSz, 1));
+astGeom.setAttribute('color', new THREE.BufferAttribute(astCol, 3));
+var astField = new THREE.Points(astGeom, new THREE.PointsMaterial({
+  size: 0.06, sizeAttenuation: true, transparent: true, opacity: 0.4, vertexColors: true
+}));
+scene.add(astField);
+
+// ─────── 星云背景层（彩色粒子，Additive 混合） ───────
+var nebGeom = new THREE.BufferGeometry();
+var nebCnt = 1500;
+var nebPos = new Float32Array(nebCnt * 3);
+var nebCol = new Float32Array(nebCnt * 3);
+var nebSz = new Float32Array(nebCnt);
+for (var i = 0; i < nebCnt; i++) {
+  var r = 250 + Math.random() * 350;
+  var theta = Math.random() * Math.PI * 2;
+  var phi = Math.acos(2 * Math.random() - 1);
+  nebPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  nebPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.4;
+  nebPos[i * 3 + 2] = r * Math.cos(phi);
+  var hue = Math.random();
+  if (hue < 0.33) {
+    nebCol[i * 3] = 0.6 + Math.random() * 0.4;
+    nebCol[i * 3 + 1] = 0.2 + Math.random() * 0.2;
+    nebCol[i * 3 + 2] = 0.4 + Math.random() * 0.4;
+  } else if (hue < 0.66) {
+    nebCol[i * 3] = 0.1 + Math.random() * 0.2;
+    nebCol[i * 3 + 1] = 0.3 + Math.random() * 0.4;
+    nebCol[i * 3 + 2] = 0.6 + Math.random() * 0.4;
+  } else {
+    nebCol[i * 3] = 0.3 + Math.random() * 0.4;
+    nebCol[i * 3 + 1] = 0.1 + Math.random() * 0.2;
+    nebCol[i * 3 + 2] = 0.5 + Math.random() * 0.5;
+  }
+  nebSz[i] = 0.8 + Math.random() * 2.5;
+}
+nebGeom.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+nebGeom.setAttribute('color', new THREE.BufferAttribute(nebCol, 3));
+nebGeom.setAttribute('size', new THREE.BufferAttribute(nebSz, 1));
+var nebula = new THREE.Points(nebGeom, new THREE.PointsMaterial({
+  size: 1.5, sizeAttenuation: true, transparent: true, opacity: 0.06,
+  vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false
+}));
+scene.add(nebula);
+
+// 小行星带动画
+function updateAsteroids(dt) {
+  var pos = astGeom.attributes.position.array;
+  for (var i = 0; i < astCnt; i++) {
+    var x = pos[i * 3], z = pos[i * 3 + 2];
+    var angle = Math.atan2(z, x) + dt * 0.008 * (1 + (i % 3) * 0.3);
+    var dist = Math.sqrt(x * x + z * z);
+    pos[i * 3] = Math.cos(angle) * dist;
+    pos[i * 3 + 2] = Math.sin(angle) * dist;
+  }
+  astGeom.attributes.position.needsUpdate = true;
+}
+
+// 第十三部分：任务状态变量
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var playing = true;
+var speed = 1;
+var speeds = [0.5, 1, 2, 5, 10];
+var speedIdx = 1;
+var progress = 0;         // 0.0 ~ 1.0
+var phase = 0;            // 当前阶段索引 0-4
+var runningTime = 0;
+var missionDuration = 130; // 完整模拟秒数
+var childMode = false;
+var eduMode = false;
+var cameraMode = 0;
+var cameraModes = ['全局俯瞰', '追随飞船', '地球特写', '月球特写', '轨道俯视', '驾驶舱', '上帝视角'];
+var camTransTime = 0;
+var targetCamPos = null;
+var targetCamTarget = null;
+var factTimer = 0;
+var funFactIdx = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十四部分：主渲染循环
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function animate() {
+  requestAnimationFrame(animate);
+  var dt = 0.016 * speed;
+
+  // --- 任务进度更新 ---
+  if (playing) {
+    progress += dt / missionDuration;
+    if (progress >= 1) {
+      progress = 1;
+      playing = false;
+      document.getElementById('bP').innerHTML = '<span class="icon">▶</span>重播';
+    }
+    runningTime += dt;
+    updateMission(progress);
+    updateTelemetry(progress);
+    updatePhaseUI(progress);
+    updateEdu(progress);
+    updateEvent(progress);
+    // 冷知识轮播
+    factTimer += dt;
+    if (factTimer > 8 && eduMode) {
+      factTimer = 0;
+      funFactIdx = (funFactIdx + 1) % FUN_FACTS.length;
+      document.getElementById('eduFact').textContent = '💡 ' + FUN_FACTS[funFactIdx];
+    }
+  }
+
+  controls.update();
+
+  // --- 恒星闪烁 ---
+  var st = Date.now() * 0.0003;
+  var sa = starGeom.attributes.size.array;
+  for (var i = 0; i < starCnt; i++) {
+    sa[i] = 0.1 + 0.3 + 0.7 * Math.sin(st + starTw[i]) * 1.5;
+  }
+  starGeom.attributes.size.needsUpdate = true;
+
+  // --- 地球自转 ---
+  earth.rotation.y += dt * 0.04;
+  clouds.rotation.y += dt * 0.05;
+  // --- 月球自转 ---
+  moonObj.rotation.y += dt * 0.025;
+
+  // --- 太阳光晕脉动 ---
+  var sp = 0.5 + 0.5 * Math.sin(Date.now() * 0.0004);
+  g1.material.opacity = 0.08 + sp * 0.08;
+  g2.material.opacity = 0.03 + sp * 0.04;
+
+  // --- 小行星带更新 ---
+  updateAsteroids(dt);
+
+  // --- 星云慢速旋转 ---
+  nebula.rotation.y += dt * 0.002;
+  nebula.rotation.x += dt * 0.0005;
+
+  // --- 粒子更新和轨迹更新 ---
+  updateParticles(dt);
+  updateTrail(dt);
+
+  // --- 相机过渡动画 ---
+  if (targetCamPos) {
+    camTransTime += dt;
+    var tr = Math.min(camTransTime / 2.0, 1);
+    camera.position.lerp(targetCamPos, tr * 0.06);
+    if (targetCamTarget) controls.target.lerp(targetCamTarget, tr * 0.06);
+    if (tr >= 1) { targetCamPos = null; targetCamTarget = null; }
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ─────── 事件时间线更新 ───────
+function updateEvent(p) {
+  var evt = document.getElementById('evtName');
+  var best = MISSION_EVENTS[0];
+  for (var i = 0; i < MISSION_EVENTS.length; i++) {
+    if (MISSION_EVENTS[i].t <= p + 0.005) best = MISSION_EVENTS[i];
+  }
+  evt.textContent = best.name + ' — ' + best.desc;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十五部分：任务更新函数
+// 计算飞船在 NRHO 轨道上的位置
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function updateMission(p) {
+  var phases = [0.06, 0.28, 0.65, 0.88, 1.0];
+  for (var i = 0; i < phases.length; i++) {
+    if (p < phases[i]) { phase = i; break; }
+  }
+  if (p >= 1) phase = 4;
+
+  var t = p * 6.28 * 3.8;
+  var rx, ry, rz;
+
+  // 不同阶段使用不同的轨道数学
+  if (p < 0.06) {
+    var pt = p / 0.06;
+    rx = lerp(-5, 5.5, pt);
+    ry = lerp(0, 1.2, pt);
+    rz = lerp(0, 2, pt);
+  } else if (p > 0.88) {
+    var pt2 = (p - 0.88) / 0.12;
+    rx = lerp(6.5, 2.5, pt2);
+    ry = lerp(1.8, -0.3, pt2);
+    rz = lerp(3.8, 1.2, pt2);
+  } else {
+    rx = 5 + 3 * Math.sin(t * 0.7);
+    ry = 1.8 * Math.sin(t * 1.2 + 0.5);
+    rz = 3.8 * Math.cos(t * 0.85);
+  }
+
+  craft.position.set(rx, ry, rz);
+
+  // 飞船朝向飞行方向
+  var lookT = new THREE.Vector3(
+    rx + Math.cos(t * 0.7 + 0.5) * 2,
+    ry + Math.cos(t * 1.2 + 0.5) * 0.8,
+    rz - Math.sin(t * 0.85 + 0.5) * 2
+  );
+  craft.lookAt(lookT);
+  craft.rotation.z = Math.sin(t * 3) * 0.025;
+
+  // 推进器开启状态：发射段和返回段
+  var thrustOn = (p < 0.06) || (p > 0.65 && p < 0.73);
+  pMat.opacity = thrustOn ? 0.7 : 0.05;
+  engLight.intensity = thrustOn ? 0.4 : 0.05;
+
+  // 相机跟随模式
+  if (cameraMode === 1) {
+    var cp = new THREE.Vector3(rx + 7, ry + 3.5, rz + 5);
+    if (!targetCamPos) {
+      camera.position.lerp(cp, 0.03);
+      controls.target.lerp(new THREE.Vector3(rx, ry, rz), 0.03);
+    }
+  }
+  if (cameraMode === 5) {
+    var cp2 = new THREE.Vector3(rx + 1.5, ry + 1.8, rz - 3.5);
+    if (!targetCamPos) {
+      camera.position.lerp(cp2, 0.03);
+      controls.target.lerp(new THREE.Vector3(rx, ry + 0.3, rz), 0.03);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十六部分：遥测数据更新
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function updateTelemetry(p) {
+  var totalSec = p * 25 * 86400 + 3600;
+  var d = Math.floor(totalSec / 86400);
+  var h = Math.floor((totalSec % 86400) / 3600);
+  var m = Math.floor((totalSec % 3600) / 60);
+  var s = Math.floor(totalSec % 60);
+  document.getElementById('vT').textContent = 'D+' + (d < 10 ? '0' : '') + d + ' ' +
+    (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+
+  var dist = Math.round(384400 * Math.sin(p * Math.PI * 1.2));
+  document.getElementById('vD').textContent = dist.toLocaleString() + ' km';
+
+  var spdPhase = [2.5, 6.8, 1.6, 8.5, 0.3];
+  var idx = Math.min(phase, 4);
+  var speedVal = spdPhase[idx] + Math.sin(p * 20) * 0.5;
+  document.getElementById('vS').textContent = speedVal.toFixed(1) + ' km/s';
+
+  var alt = Math.round(400 + 380000 * p * (1 - p));
+  document.getElementById('vA').textContent = alt.toLocaleString() + ' km';
+  document.getElementById('vO').textContent = Math.floor(p * 3.5);
+  document.getElementById('vP').textContent = Math.round(p * 100) + '%';
+
+  // 进度条和指示点
+  document.getElementById('pfl').style.width = (p * 100) + '%';
+  document.getElementById('pdot').style.left = (p * 100) + '%';
+
+  // 阶段标签高亮
+  var ls = document.querySelectorAll('.pl');
+  for (var i = 0; i < ls.length; i++) ls[i].classList.toggle('act', i === phase);
+
+  // 任务完成徽章
+  document.getElementById('badge').classList.toggle('show', p >= 0.99);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十七部分：UI 更新函数
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function updatePhaseUI(p) {
+  var idx = Math.min(phase, 4);
+  document.getElementById('pname').textContent = PH[idx].n;
+  document.getElementById('pdesc').textContent = childMode ? PH[idx].cc : PH[idx].d;
+  document.getElementById('pdate').textContent = PH[idx].dt;
+  var c = PH[idx].c;
+  document.getElementById('pname').style.color = 'rgb(' +
+    Math.floor(c[0] * 255) + ',' + Math.floor(c[1] * 255) + ',' + Math.floor(c[2] * 255) + ')';
+  document.getElementById('clbl').textContent = '🎥 ' + cameraModes[cameraMode];
+  document.getElementById('camIdx').textContent = (cameraMode + 1) + '/' + cameraModes.length;
+}
+
+function updateEdu(p) {
+  var idx = Math.min(phase, 4);
+  document.getElementById('eduText').textContent = PH[idx].edu;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十八部分：粒子系统更新
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function updateParticles(dt) {
+  var pos = pGeom.attributes.position.array;
+  var col = pGeom.attributes.color.array;
+  var sz = pGeom.attributes.size.array;
+  var thrustOn = (progress < 0.06) || (progress > 0.65 && progress < 0.73);
+  var emit = thrustOn ? 4 : 1;
+
+  // 发射新粒子
+  for (var i = 0; i < emit; i++) {
+    pLife[pIdx] = 1.0;
+    var dir = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.04,
+      (Math.random() - 0.5) * 0.04,
+      -1
+    ).applyQuaternion(craft.quaternion);
+    var wp = craft.position.clone().add(dir.clone().multiplyScalar(0.35));
+    pos[pIdx * 3] = wp.x;
+    pos[pIdx * 3 + 1] = wp.y;
+    pos[pIdx * 3 + 2] = wp.z;
+    pV[pIdx * 3] = dir.x * (0.3 + Math.random() * 2);
+    pV[pIdx * 3 + 1] = dir.y * (0.3 + Math.random() * 2);
+    pV[pIdx * 3 + 2] = dir.z * (0.5 + Math.random() * 2.5);
+    sz[pIdx] = 0.03 + Math.random() * 0.08;
+    col[pIdx * 3] = 1;
+    col[pIdx * 3 + 1] = 0.5 + Math.random() * 0.3;
+    col[pIdx * 3 + 2] = 0.1 + Math.random() * 0.2;
+    pIdx = (pIdx + 1) % maxP;
+  }
+
+  // 更新已有粒子
+  for (var i = 0; i < maxP; i++) {
+    if (pLife[i] > 0) {
+      pLife[i] -= dt * (thrustOn ? 0.4 : 3);
+      pos[i * 3] += pV[i * 3] * dt * 2.5;
+      pos[i * 3 + 1] += pV[i * 3 + 1] * dt * 2.5;
+      pos[i * 3 + 2] += pV[i * 3 + 2] * dt * 2.5;
+      pV[i * 3] *= 0.96;
+      pV[i * 3 + 1] *= 0.96;
+      pV[i * 3 + 2] *= 0.96;
+      sz[i] *= 0.97;
+      if (pLife[i] < 0) sz[i] = 0;
+    } else {
+      sz[i] = 0;
+    }
+  }
+  pGeom.attributes.position.needsUpdate = true;
+  pGeom.attributes.color.needsUpdate = true;
+  pGeom.attributes.size.needsUpdate = true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十九部分：轨迹更新
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function updateTrail(dt) {
+  if (!playing) return;
+  var pos = tGeom.attributes.position.array;
+  pos[tIdx * 3] = craft.position.x;
+  pos[tIdx * 3 + 1] = craft.position.y;
+  pos[tIdx * 3 + 2] = craft.position.z;
+  tIdx = (tIdx + 1) % tLen;
+  if (tIdx === 0) tFull = true;
+  tGeom.attributes.position.needsUpdate = true;
+  tGeom.setDrawRange(0, tFull ? tLen : tIdx);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第二十部分：UI 控件函数
+// ═══════════════════════════════════════════════════════════════════════════════════════
+function tPlay() {
+  if (progress >= 1) { resetM(); return; }
+  playing = !playing;
+  document.getElementById('bP').innerHTML = '<span class="icon">' + (playing ? '⏸' : '▶') + '</span>' + (playing ? '暂停' : '播放');
+}
+
+function cycSpd() {
+  speedIdx = (speedIdx + 1) % speeds.length;
+  speed = speeds[speedIdx];
+  document.getElementById('bS').innerHTML = '<span class="icon">⏱</span>' + speed + '×';
+}
+
+function resetM() {
+  progress = 0; runningTime = 0; phase = 0; tIdx = 0; tFull = false;
+  for (var i = 0; i < tLen * 3; i++) tBuf[i] = 0;
+  tGeom.attributes.position.needsUpdate = true;
+  playing = true;
+  document.getElementById('badge').classList.remove('show');
+  speedIdx = 1; speed = 1;
+  document.getElementById('bS').innerHTML = '<span class="icon">⏱</span>1×';
+  document.getElementById('bP').innerHTML = '<span class="icon">⏸</span>暂停';
+  document.getElementById('pdot').style.left = '0%';
+}
+
+function cycCam() {
+  cameraMode = (cameraMode + 1) % cameraModes.length;
+  document.getElementById('clbl').textContent = '🎥 ' + cameraModes[cameraMode];
+  document.getElementById('camIdx').textContent = (cameraMode + 1) + '/' + cameraModes.length;
+  targetCamPos = null; camTransTime = 0;
+  switch (cameraMode) {
+    case 0: targetCamPos = new THREE.Vector3(18, 10, 22); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    case 1: targetCamPos = null; break;
+    case 2: targetCamPos = new THREE.Vector3(-5, 4, 8); targetCamTarget = new THREE.Vector3(-9, 0, 0); break;
+    case 3: targetCamPos = new THREE.Vector3(15, 4, 8); targetCamTarget = new THREE.Vector3(11, 0, 0); break;
+    case 4: targetCamPos = new THREE.Vector3(0, 35, 1); targetCamTarget = new THREE.Vector3(1, 0, 0); break;
+    case 5: targetCamPos = null; break;
+    case 6: targetCamPos = new THREE.Vector3(45, 35, 55); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+  }
+  if (targetCamPos) camTransTime = 0;
+}
+
+function sP(idx) {
+  var pv = [0, 0.06, 0.28, 0.65, 0.88, 1.0];
+  progress = pv[idx];
+  phase = Math.min(idx, 4);
+  updateMission(progress);
+  updateTelemetry(progress);
+  updatePhaseUI(progress);
+  document.getElementById('badge').classList.remove('show');
+  if (!playing) { playing = true; document.getElementById('bP').innerHTML = '<span class="icon">⏸</span>暂停'; }
+}
+
+function seekP(e) {
+  var rect = document.getElementById('ptk').getBoundingClientRect();
+  progress = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  document.getElementById('badge').classList.remove('show');
+  updateMission(progress);
+  updateTelemetry(progress);
+  updatePhaseUI(progress);
+  if (!playing) { playing = true; document.getElementById('bP').innerHTML = '<span class="icon">⏸</span>暂停'; }
+}
+
+function tChild() {
+  childMode = !childMode;
+  document.getElementById('bC').classList.toggle('act', childMode);
+  document.body.classList.toggle('cm', childMode);
+  var idx = Math.min(phase, 4);
+  document.getElementById('pdesc').textContent = childMode ? PH[idx].cc : PH[idx].d;
+  document.getElementById('bC').innerHTML = '<span class="icon">👶</span>' + (childMode ? '儿童✓' : '儿童');
+}
+
+function tEdu() {
+  eduMode = !eduMode;
+  document.getElementById('edu').style.display = eduMode ? 'block' : 'none';
+  document.getElementById('bE').classList.toggle('act', eduMode);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第二十一部分：窗口自适应和键盘快捷键
+// ═══════════════════════════════════════════════════════════════════════════════════════
+window.addEventListener('resize', function() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+document.addEventListener('keydown', function(e) {
+  switch (e.key) {
+    case ' ': e.preventDefault(); tPlay(); break;
+    case 'r': case 'R': resetM(); break;
+    case 'c': case 'C': cycCam(); break;
+    case '1': case '2': case '3': case '4': case '5': sP(parseInt(e.key) - 1); break;
+    case 'k': case 'K': tEdu(); break;
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 第二十二部分：初始化
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 预填充轨迹数组
+for (var i = 0; i < tLen; i++) {
+  tBuf[i * 3] = craft.position.x;
+  tBuf[i * 3 + 1] = craft.position.y;
+  tBuf[i * 3 + 2] = craft.position.z;
+}
+tGeom.setDrawRange(0, 0);
+
+// 隐藏加载画面
+setTimeout(function() {
+  document.getElementById('loading').classList.add('hide');
+}, 500);
+
+// 启动主循环
+animate();
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 结束 — NASA Artemis 绕月任务 3D 电影级模拟 v5.0
+// 将本文件复制到另一台电脑，用浏览器打开即可运行
+// 需要网络连接以从 unpkg.com 加载 Three.js 库
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// 版本历史:
+// v1.0 (2026-05-03): 初版 — 基础 Three.js 场景，地球+月球+Orion飞船
+// v2.0 (2026-05-04): 扩展版 — 增加 NRHO 轨道模拟、5阶段任务流程
+// v3.0 (2026-05-05): 电影版 — 增加菲涅尔大气辉光、粒子尾焰、7种相机视角
+// v4.0 (2026-05-05): 电影 v4 — 优化性能、增加儿童模式、移动端自适应、键盘快捷键
+// v5.0 (2026-07-08): 终极版 — 增加小行星带(2000颗)、星云背景、25个任务事件时间线、
+//                      8条冷知识轮播、当前事件指示器、白玻3D液态UI全面升级、
+//                      程序化纹理从512x256提升至1024x512、更多CSS入场动画、
+//                      详细文档注释、触屏设备优化、Retina屏幕适配
+//
+// 已知限制:
+// - 轨道为近似数学建模，非精确 JPL 星历数据
+// - 不支持离线使用（需要 CDN 加载 Three.js）
+// - 4GB Mac 上建议关闭其他标签页使用
+//
+// 协议: 仅用于学习和展示用途
+// ═══════════════════════════════════════════════════════════════════════════════════════
+</script>
+</body>
+</html>
