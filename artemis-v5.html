@@ -126,21 +126,21 @@ canvas {
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 #pbox {
   position: absolute;
-  top: 60px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: auto;
   z-index: 11;
-  padding: 10px 24px;
-  max-width: 92%;
-  min-width: 200px;
-  max-height: 90px;
+  padding: 14px 28px;
+  max-width: 86%;
+  min-width: 220px;
+  max-height: 100px;
   overflow: hidden;
   border-radius: 16px;
 }
 #pbox.expanded {
-  max-height: 300px;
+  max-height: 320px;
   overflow-y: auto;
 }
 #pname {
@@ -627,7 +627,7 @@ canvas {
   }
   .cb .icon { font-size: 11px !important; margin-right: 2px !important; }
   #legend { display: none !important; }
-  #pbox { padding: 8px 16px !important; top: 46px !important; max-width: 94% !important; }
+  #pbox { padding: 10px 18px !important; top: 50% !important; max-width: 92% !important; max-height: 80px !important; }
   #edu { max-width: 160px !important; padding: 8px 12px !important; font-size: 10px !important; }
   #clbl { font-size: 8px !important; padding: 4px 8px !important; top: 6px !important; left: 6px !important; }
   .pl { font-size: 7px !important; }
@@ -1633,11 +1633,12 @@ scene.add(rocketGroup);
 
 // 分级数据：名称、几何体、颜色、分离时间(p值)、分离方向、分离偏移量
 var STAGE_DATA = [
-  { name: 'srbl', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.020, dir: [-0.8, 0, 0], dist: 0 },
-  { name: 'srbr', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.020, dir: [0.8, 0, 0], dist: 0 },
-  { name: 'core', geo: new THREE.CylinderGeometry(0.16, 0.16, 0.45, 16), color: 0xdd8855, sepP: 0.040, dir: [0, 0.3, -1], dist: 0 },
-  { name: 'fairing', geo: new THREE.ConeGeometry(0.20, 0.22, 16), color: 0xeeeeee, sepP: 0.030, dir: [0.2, 0.5, 0.3], dist: 0 },
-  { name: 'icps', geo: new THREE.CylinderGeometry(0.13, 0.16, 0.18, 16), color: 0xcccccc, sepP: 0.070, dir: [0, -0.2, 1], dist: 0 }
+  // SLS真实分离时序：SRB T+2m12s → 整流罩 T+10m → 芯级MECO+分离 T+8m → ICPS T+2h
+  { name: 'srbl', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.015, dir: [-0.8, 0, 0], dist: 0 },
+  { name: 'srbr', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.015, dir: [0.8, 0, 0], dist: 0 },
+  { name: 'core', geo: new THREE.CylinderGeometry(0.16, 0.16, 0.45, 16), color: 0xdd8855, sepP: 0.045, dir: [0, 0.3, -1], dist: 0 },
+  { name: 'fairing', geo: new THREE.ConeGeometry(0.20, 0.22, 16), color: 0xeeeeee, sepP: 0.035, dir: [0.2, 0.5, 0.3], dist: 0 },
+  { name: 'icps', geo: new THREE.CylinderGeometry(0.13, 0.16, 0.18, 16), color: 0xcccccc, sepP: 0.080, dir: [0, -0.2, 1], dist: 0 }
 ];
 
 var stageMeshes = [];
@@ -1815,7 +1816,8 @@ var missionDuration = 130; // 完整模拟秒数
 var childMode = false;
 var eduMode = false;
 var cameraMode = 0;
-var cameraModes = ['全局俯瞰', '追随飞船', '地球特写', '月球特写', '轨道俯视', '驾驶舱', '上帝视角'];
+// 7种电影视角，对应Artemis真实任务视角
+var cameraModes = ['🚀发射塔视角', '🛰️追随飞船', '🌍地球特写', '🌙月球特写', '🔄轨道俯视', '👨‍🚀驾驶舱', '🌌上帝视角'];
 var camTransTime = 0;
 var targetCamPos = null;
 var targetCamTarget = null;
@@ -1939,64 +1941,95 @@ function updateEvent(p) {
 // 计算飞船在 NRHO 轨道上的位置
 // ═══════════════════════════════════════════════════════════════════════════════════════
 function updateMission(p) {
-  var phases = [0.06, 0.28, 0.65, 0.88, 1.0];
+  // 阶段判定（月球公转已由animate循环实时更新moonAngle）
+  var phases = [0.06, 0.25, 0.65, 0.85, 1.0];
   for (var i = 0; i < phases.length; i++) {
     if (p < phases[i]) { phase = i; break; }
   }
   if (p >= 1) phase = 4;
 
-  var rx, ry, rz;
+  // 获取月球实时位置（月球在公转，轨道以此为基础）
+  var mx = 11 * Math.cos(moonAngle);
+  var mz = 11 * Math.sin(moonAngle);
 
-  // 不同阶段使用不同的轨道数学
+  var rx, ry, rz;
+  var facingMoon = true;  // 默认面向月球
+
   if (p < 0.06) {
-    // 第1阶段：发射升空（p=0~0.06）
+    // ===== 第1阶段：发射升空（p=0~0.06）=====
     var pt = p / 0.06;
-    rx = lerp(-5, 5, pt);
-    ry = lerp(0, 0.7, pt);
-    rz = lerp(0, 1.5, pt);
-  } else if (p < 0.28) {
-    // 第2阶段：地月转移（p=0.06~0.28）
-    var pt = (p - 0.06) / 0.22;
-    var sway = Math.sin(pt * Math.PI) * 0.5;
-    rx = lerp(5, 10, pt);
-    ry = lerp(0.7, 0.5, pt) + sway;
-    rz = lerp(1.5, 0.8, pt) + sway * 0.5;
+    rx = lerp(-4, 3, pt);
+    ry = lerp(0, 0.6, pt);
+    rz = lerp(0, 1.0, pt);
+    facingMoon = false;
+  } else if (p < 0.25) {
+    // ===== 第2阶段：地月转移（p=0.06~0.25）=====
+    // 从地球出发，沿月球当前方向前进
+    var pt = (p - 0.06) / 0.19;
+    var sway = Math.sin(pt * Math.PI) * 0.6;
+    // 月球方向向量（从地球指向月球）
+    var dirX = mx, dirZ = mz;
+    var dist = Math.sqrt(dirX*dirX + dirZ*dirZ);
+    dirX /= dist; dirZ /= dist;
+    // 从近地到近月，路径追随月球方向
+    var outR = lerp(4, 10, pt);
+    rx = dirX * outR + sway * 1.2;
+    ry = lerp(0.6, 0.4, pt) + sway * 0.3;
+    rz = dirZ * outR + sway * 0.8;
+    facingMoon = true;
   } else if (p < 0.65) {
-    // 第3阶段：绕月飞行（p=0.28~0.65）
-    // NRHO轨道：绕月球背面再平滑滑出
-    var pt = (p - 0.28) / 0.37;
-    var angle = pt * Math.PI * 2.0;
-    var moonR = 2.8;
-    var moonY = 1.0;
-    // 从月球前方→背后→前方
-    rx = 11 + moonR * Math.cos(angle);
-    ry = moonY * 0.6 * Math.sin(angle * 1.5);
-    rz = moonR * 0.6 * Math.sin(angle * 0.8);
-  } else if (p < 0.88) {
-    // 第4阶段：返回地球（p=0.65~0.88）
-    var pt = (p - 0.65) / 0.23;
-    var sway = Math.sin(pt * Math.PI) * 0.4;
-    rx = lerp(10, 6.5, pt);
-    ry = lerp(0.5, 1.5, pt) + sway;
-    rz = lerp(0.8, 3.5, pt) - sway * 0.3;
+    // ===== 第3阶段：绕月飞行（p=0.25~0.65）=====
+    // NRHO轨道：以月球位置为中心，从前方→背面→前方
+    var pt = (p - 0.25) / 0.40;
+    var angle = pt * Math.PI * 2.2;
+    var orbitR = 2.8;
+    // 绕月球椭圆的NRHO
+    rx = mx + orbitR * Math.cos(angle);
+    ry = 1.0 * Math.sin(angle * 1.3 + 0.3);
+    rz = mz + orbitR * 0.65 * Math.sin(angle * 0.85);
+    facingMoon = true;
+  } else if (p < 0.85) {
+    // ===== 第4阶段：返回地球（p=0.65~0.85）=====
+    // 考虑地球自转：返回路径偏转
+    var pt = (p - 0.65) / 0.20;
+    var sway = Math.sin(pt * Math.PI) * 0.5;
+    // 从月球位置返回地球方向
+    var toEarthX = -mx, toEarthZ = -mz;
+    var dist = Math.sqrt(toEarthX*toEarthX + toEarthZ*toEarthZ);
+    toEarthX /= dist; toEarthZ /= dist;
+    // 地球自转偏移（返回时落点东移）
+    var earthRotOff = pt * 0.6;
+    var inR = lerp(10, 4, pt);
+    rx = toEarthX * inR + earthRotOff + sway * 0.8;
+    ry = lerp(0.4, 1.2, pt) + sway * 0.2;
+    rz = toEarthZ * inR + earthRotOff * 0.5 + sway * 0.4;
+    facingMoon = false;
   } else {
-    // 第5阶段：再入溅落（p=0.88~1.0）
-    var pt = (p - 0.88) / 0.12;
-    rx = lerp(6.5, 2.5, pt);
-    ry = 1.5 * (1 - pt) - 0.3 * pt;
-    rz = 3.5 * (1 - pt) + 1.2 * pt;
+    // ===== 第5阶段：再入溅落（p=0.85~1.0）=====
+    var pt = (p - 0.85) / 0.15;
+    // 地球自转使落点偏移（太平洋溅落区域）
+    var reentryAngle = pt * 0.3;
+    rx = lerp(4, 2.0, pt) + Math.sin(reentryAngle) * 0.8;
+    ry = lerp(1.2, -0.5, pt);
+    rz = lerp(1.0, 0.3, pt) + Math.cos(reentryAngle) * 0.6;
+    facingMoon = false;
   }
 
   craft.position.set(rx, ry, rz);
 
-  // 飞船朝向飞行方向
-  var lookT = new THREE.Vector3(
-    rx + Math.cos(t * 0.7 + 0.5) * 2,
-    ry + Math.cos(t * 1.2 + 0.5) * 0.8,
-    rz - Math.sin(t * 0.85 + 0.5) * 2
-  );
-  craft.lookAt(lookT);
-  craft.rotation.z = Math.sin(t * 3) * 0.025;
+  // ===== 飞船朝向逻辑 =====
+  if (facingMoon) {
+    // 去程和绕月：服务舱面向月球（前端指向月球）
+    var moonTarget = new THREE.Vector3(mx, 0, mz);
+    craft.lookAt(moonTarget);
+  } else {
+    // 返程和再入：指向地球
+    craft.lookAt(0, 0, 0);
+  }
+  // 轻微晃动增加真实感
+  var wobbleT = p * 18.84;
+  craft.rotation.z = Math.sin(wobbleT * 3) * 0.015;
+  craft.rotation.x = Math.sin(wobbleT * 1.7) * 0.01;
 
   // 推进器开启状态：发射段和返回段
   var thrustOn = (p < 0.06) || (p > 0.65 && p < 0.73);
@@ -2178,13 +2211,20 @@ function cycCam() {
   document.getElementById('camIdx').textContent = (cameraMode + 1) + '/' + cameraModes.length;
   targetCamPos = null; camTransTime = 0;
   switch (cameraMode) {
-    case 0: targetCamPos = new THREE.Vector3(18, 10, 22); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    // 0: 发射塔视角 — 从KSC侧方看火箭起飞
+    case 0: targetCamPos = new THREE.Vector3(12, 5, 15); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    // 1: 追随飞船 — 动态跟随（在updateMission中处理）
     case 1: targetCamPos = null; break;
-    case 2: targetCamPos = new THREE.Vector3(-5, 4, 8); targetCamTarget = new THREE.Vector3(-9, 0, 0); break;
-    case 3: targetCamPos = new THREE.Vector3(15, 4, 8); targetCamTarget = new THREE.Vector3(11, 0, 0); break;
-    case 4: targetCamPos = new THREE.Vector3(0, 35, 1); targetCamTarget = new THREE.Vector3(1, 0, 0); break;
+    // 2: 地球特写 — 看地球自转和大气辉光
+    case 2: targetCamPos = new THREE.Vector3(-6, 2, 6); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    // 3: 月球特写 — 看月球和绕月飞船
+    case 3: targetCamPos = new THREE.Vector3(14, 3, 8); targetCamTarget = new THREE.Vector3(11, 0, 0); break;
+    // 4: 轨道俯视 — 从上方看整个地月系统
+    case 4: targetCamPos = new THREE.Vector3(0, 30, 0.1); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    // 5: 驾驶舱 — 从飞船后方近距跟随（在updateMission中处理）
     case 5: targetCamPos = null; break;
-    case 6: targetCamPos = new THREE.Vector3(45, 35, 55); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
+    // 6: 上帝视角 — 从极远距离看地月系统全貌
+    case 6: targetCamPos = new THREE.Vector3(50, 30, 45); targetCamTarget = new THREE.Vector3(0, 0, 0); break;
   }
   if (targetCamPos) camTransTime = 0;
 }
