@@ -810,7 +810,7 @@ canvas { width: 100%; height: 100%; display: block; }
   </div>
 
   <!-- 相机模式切换标签 -->
-  <div id="clbl" onclick="cycCam()">🎥 全局俯瞰</div>
+  <div id="clbl" onclick="cycCam()">🚀发射塔视角</div>
 
   <!-- 当前事件标签 -->
   <div id="evt" style="position:absolute;top:116px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:11;font-size:9px;color:rgba(0,212,255,0.3);letter-spacing:0.5px;text-align:center;transition:opacity 0.5s;text-shadow:0 0 10px rgba(0,212,255,0.08)">
@@ -2101,7 +2101,7 @@ function updatePhaseUI(p) {
   var c = PH[idx].c;
   document.getElementById('pname').style.color = 'rgb(' +
     Math.floor(c[0] * 255) + ',' + Math.floor(c[1] * 255) + ',' + Math.floor(c[2] * 255) + ')';
-  document.getElementById('clbl').textContent = '🎥 ' + cameraModes[cameraMode];
+  document.getElementById('clbl').textContent = cameraModes[cameraMode];
   document.getElementById('camIdx').textContent = (cameraMode + 1) + '/' + cameraModes.length;
 }
 
@@ -2207,7 +2207,7 @@ function resetM() {
 
 function cycCam() {
   cameraMode = (cameraMode + 1) % cameraModes.length;
-  document.getElementById('clbl').textContent = '🎥 ' + cameraModes[cameraMode];
+  document.getElementById('clbl').textContent = cameraModes[cameraMode];
   document.getElementById('camIdx').textContent = (cameraMode + 1) + '/' + cameraModes.length;
   targetCamPos = null; camTransTime = 0;
   switch (cameraMode) {
