@@ -873,39 +873,34 @@ canvas { width: 100%; height: 100%; display: block; }
   </div>
 </div>
 
-<!-- ===== 引入 Three.js (双CDN容错) ===== -->
+<!-- ===== 多CDN加载 Three.js + OrbitControls ===== -->
 <script>
-// 双CDN加载 Three.js — 国内优先用 cdnjs
-(function() {
-  var scripts = [
-    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-    'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
-    'https://unpkg.com/three@0.128.0/build/three.min.js'
-  ];
-  function tryLoad(idx) {
-    if (idx >= scripts.length) {
-      document.getElementById('loading').innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.4)"><div style="font-size:40px;margin-bottom:12px">😵</div><div>加载失败，请检查网络连接</div><div style="font-size:12px;margin-top:8px;color:rgba(255,255,255,0.2)">或复制HTML文件到本地打开</div></div>';
-      return;
-    }
-    var s = document.createElement('script');
-    s.src = scripts[idx];
-    s.onload = function() { initArtemis(); };
-    s.onerror = function() { tryLoad(idx + 1); };
-    document.head.appendChild(s);
-  }
-  // 超时保护：8秒后强制显示错误
-  setTimeout(function() {
-    if (typeof THREE === 'undefined') {
-      document.getElementById('loading').innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.4)"><div style="font-size:40px;margin-bottom:12px">🌐</div><div>CDN加载超时</div><div style="font-size:12px;margin-top:8px;color:rgba(255,255,255,0.2)">请复制HTML文件到本地浏览器打开<br>或尝试刷新页面</div></div>';
-    }
-  }, 8000);
-  tryLoad(0);
-})();
+// CDN自动选择: 依次试 cdnjs → jsdelivr → unpkg（国内友好）
+var _3dCDNs = [
+  ['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js'],
+  ['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'],
+  ['https://unpkg.com/three@0.128.0/build/three.min.js', 'https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js']
+];
+(function _3dTry(n){
+  if(n>=_3dCDNs.length){var e=document.querySelector('#loading .lt');if(e)e.textContent='⚠️ 加载失败，请刷新或检查网络';return}
+  var s=document.createElement('script');s.src=_3dCDNs[n][0];
+  s.onload=function(){
+    var s2=document.createElement('script');s2.src=_3dCDNs[n][1];
+    s2.onload=function(){window._3dInit();};
+    s2.onerror=function(){_3dTry(n+1)};document.head.appendChild(s2)
+  };
+  s.onerror=function(){_3dTry(n+1)};document.head.appendChild(s)
+})(0);
 </script>
 <script>
-function initArtemis() {
-"use strict";
-/*   ║                                                                                      ║
+function initApp() {
+/* ╔══════════════════════════════════════════════════════════════════════════════════════╗
+   ║                                                                                      ║
+   ║   ARTEMIS LUNAR MISSION v5.0 — 完整引擎                                              ║
+   ║   ─────────────────────────────────────────────────────────                           ║
+   ║   Three.js WebGL | 程序化纹理生成 | 电影镜头系统 | NRHO轨道模拟                      ║
+   ║   教育知识系统 | 儿童友好模式 | 7种相机视角 | 尾焰粒子系统                           ║
+   ║                                                                                      ║
    ║   渲染引擎: Three.js r128 (CDN)                                                      ║
    ║   纹理生成: 程序化 Value Noise + FBM (分形布朗运动) × 5层叠加                       ║
    ║   轨道数学: 基于 NRHO (近直线晕轨道) 的近似参数建模                                 ║
@@ -2139,8 +2134,7 @@ setTimeout(function() {
 
 // 启动主循环
 animate();
-} // end initArtemis
-</script>
+
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // 结束 — NASA Artemis 绕月任务 3D 电影级模拟 v5.0
 // 将本文件复制到另一台电脑，用浏览器打开即可运行
@@ -2164,6 +2158,8 @@ animate();
 //
 // 协议: 仅用于学习和展示用途
 // ═══════════════════════════════════════════════════════════════════════════════════════
-
+}
+window._3dInit = function(){initApp();};
+</script>
 </body>
 </html>
