@@ -126,16 +126,22 @@ canvas {
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 #pbox {
   position: absolute;
-  top: 54px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
   pointer-events: auto;
   z-index: 11;
-  padding: 12px 30px;
+  padding: 10px 24px;
   max-width: 92%;
   min-width: 200px;
+  max-height: 90px;
+  overflow: hidden;
   border-radius: 16px;
+}
+#pbox.expanded {
+  max-height: 300px;
+  overflow-y: auto;
 }
 #pname {
   font-size: 22px;
@@ -1472,6 +1478,8 @@ function genMoonTex(w, h) {
   ctx.putImageData(d, 0, 0);
   return new THREE.CanvasTexture(c);
 }
+// 月球公转角度（增量更新）
+var moonAngle = 0;
 var moonTex = genMoonTex(1024, 512);
 
 var moonObj = new THREE.Mesh(
@@ -1617,6 +1625,62 @@ craft.scale.set(1.2, 1.2, 1.2);
 scene.add(craft);
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
+// 第十一部分：SLS 火箭分级模型（发射段可见，各阶段依次脱离）
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var rocketGroup = new THREE.Group();  // 火箭整组（发射时跟随飞船位置）
+rocketGroup.visible = false;
+scene.add(rocketGroup);
+
+// 分级数据：名称、几何体、颜色、分离时间(p值)、分离方向、分离偏移量
+var STAGE_DATA = [
+  { name: 'srbl', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.020, dir: [-0.8, 0, 0], dist: 0 },
+  { name: 'srbr', geo: new THREE.CylinderGeometry(0.08, 0.10, 0.55, 12), color: 0xcc5533, sepP: 0.020, dir: [0.8, 0, 0], dist: 0 },
+  { name: 'core', geo: new THREE.CylinderGeometry(0.16, 0.16, 0.45, 16), color: 0xdd8855, sepP: 0.040, dir: [0, 0.3, -1], dist: 0 },
+  { name: 'fairing', geo: new THREE.ConeGeometry(0.20, 0.22, 16), color: 0xeeeeee, sepP: 0.030, dir: [0.2, 0.5, 0.3], dist: 0 },
+  { name: 'icps', geo: new THREE.CylinderGeometry(0.13, 0.16, 0.18, 16), color: 0xcccccc, sepP: 0.070, dir: [0, -0.2, 1], dist: 0 }
+];
+
+var stageMeshes = [];
+for (var si = 0; si < STAGE_DATA.length; si++) {
+  var sd = STAGE_DATA[si];
+  var mat = new THREE.MeshPhongMaterial({ color: sd.color, specular: 0x222222, shininess: 20 });
+  var mesh = new THREE.Mesh(sd.geo, mat);
+  mesh.userData = { sepP: sd.sepP, dir: sd.dir, dist: 0, sepAnim: 0 };
+  
+  // 定位各级
+  switch (sd.name) {
+    case 'srbl': mesh.position.set(-0.18, 0, -0.08); break;
+    case 'srbr': mesh.position.set(0.18, 0, -0.08); break;
+    case 'core': mesh.position.set(0, 0, -0.30); mesh.rotation.x = 0.02; break;
+    case 'fairing': mesh.position.set(0, 0, 0.35); break;
+    case 'icps': mesh.position.set(0, 0, -0.08); break;
+  }
+  rocketGroup.add(mesh);
+  stageMeshes.push(mesh);
+}
+
+// SRB喷管细节
+for (var si = 0; si < 2; si++) {
+  var noz = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.03, 8),
+    new THREE.MeshPhongMaterial({ color: 0x444444, metal: true }));
+  noz.position.set(si === 0 ? -0.18 : 0.18, 0, -0.38);
+  rocketGroup.add(noz);
+}
+
+// 芯级发动机喷管
+var coreNoz = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.04, 10),
+  new THREE.MeshPhongMaterial({ color: 0x555555, metal: true }));
+coreNoz.position.set(0, 0, -0.56);
+rocketGroup.add(coreNoz);
+
+// 火箭级间段（连接各级的环）
+for (var ri = 0; ri < 3; ri++) {
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.01, 6, 16),
+    new THREE.MeshPhongMaterial({ color: 0x888888, metal: true }));
+  ring.position.set(0, 0, -0.08 + ri * 0.18);
+  ring.rotation.x = Math.PI / 2;
+  rocketGroup.add(ring);
+}
 // 第十一部分：尾焰粒子系统（100个粒子）
 // ═══════════════════════════════════════════════════════════════════════════════════════
 var maxP = 100;
@@ -1779,6 +1843,29 @@ function animate() {
     updatePhaseUI(progress);
     updateEdu(progress);
     updateEvent(progress);
+    // --- 火箭分级动画 ---
+    if (rocketGroup) {
+      if (progress < 0.10) {
+        rocketGroup.visible = true;
+        rocketGroup.position.copy(craft.position);
+        rocketGroup.quaternion.copy(craft.quaternion);
+        // 各级分离动画
+        for (var si = 0; si < stageMeshes.length; si++) {
+          var sm = stageMeshes[si];
+          if (progress >= sm.userData.sepP && sm.userData.sepAnim < 1) {
+            sm.userData.sepAnim = Math.min(1, sm.userData.sepAnim + dt * 2);
+            var ease = 1 - Math.pow(1 - sm.userData.sepAnim, 2);
+            sm.position.x += sm.userData.dir[0] * dt * 4;
+            sm.position.y += sm.userData.dir[1] * dt * 4;
+            sm.position.z += sm.userData.dir[2] * dt * 4;
+            sm.material.opacity = 1 - ease * 0.5;
+            sm.material.transparent = true;
+          }
+        }
+      } else {
+        rocketGroup.visible = false;
+      }
+    }
     // 冷知识轮播
     factTimer += dt;
     if (factTimer > 8 && eduMode) {
@@ -1797,6 +1884,11 @@ function animate() {
     sa[i] = 0.1 + 0.3 + 0.7 * Math.sin(st + starTw[i]) * 1.5;
   }
   starGeom.attributes.size.needsUpdate = true;
+
+  // --- 月球公转 ---
+  moonAngle += dt * 0.006;
+  moonObj.position.x = 11 * Math.cos(moonAngle);
+  moonObj.position.z = 11 * Math.sin(moonAngle);
 
   // --- 地球自转 ---
   earth.rotation.y += dt * 0.04;
@@ -1853,24 +1945,46 @@ function updateMission(p) {
   }
   if (p >= 1) phase = 4;
 
-  var t = p * 6.28 * 3.8;
   var rx, ry, rz;
 
   // 不同阶段使用不同的轨道数学
   if (p < 0.06) {
+    // 第1阶段：发射升空（p=0~0.06）
     var pt = p / 0.06;
-    rx = lerp(-5, 5.5, pt);
-    ry = lerp(0, 1.2, pt);
-    rz = lerp(0, 2, pt);
-  } else if (p > 0.88) {
-    var pt2 = (p - 0.88) / 0.12;
-    rx = lerp(6.5, 2.5, pt2);
-    ry = lerp(1.8, -0.3, pt2);
-    rz = lerp(3.8, 1.2, pt2);
+    rx = lerp(-5, 5, pt);
+    ry = lerp(0, 0.7, pt);
+    rz = lerp(0, 1.5, pt);
+  } else if (p < 0.28) {
+    // 第2阶段：地月转移（p=0.06~0.28）
+    var pt = (p - 0.06) / 0.22;
+    var sway = Math.sin(pt * Math.PI) * 0.5;
+    rx = lerp(5, 10, pt);
+    ry = lerp(0.7, 0.5, pt) + sway;
+    rz = lerp(1.5, 0.8, pt) + sway * 0.5;
+  } else if (p < 0.65) {
+    // 第3阶段：绕月飞行（p=0.28~0.65）
+    // NRHO轨道：绕月球背面再平滑滑出
+    var pt = (p - 0.28) / 0.37;
+    var angle = pt * Math.PI * 2.0;
+    var moonR = 2.8;
+    var moonY = 1.0;
+    // 从月球前方→背后→前方
+    rx = 11 + moonR * Math.cos(angle);
+    ry = moonY * 0.6 * Math.sin(angle * 1.5);
+    rz = moonR * 0.6 * Math.sin(angle * 0.8);
+  } else if (p < 0.88) {
+    // 第4阶段：返回地球（p=0.65~0.88）
+    var pt = (p - 0.65) / 0.23;
+    var sway = Math.sin(pt * Math.PI) * 0.4;
+    rx = lerp(10, 6.5, pt);
+    ry = lerp(0.5, 1.5, pt) + sway;
+    rz = lerp(0.8, 3.5, pt) - sway * 0.3;
   } else {
-    rx = 5 + 3 * Math.sin(t * 0.7);
-    ry = 1.8 * Math.sin(t * 1.2 + 0.5);
-    rz = 3.8 * Math.cos(t * 0.85);
+    // 第5阶段：再入溅落（p=0.88~1.0）
+    var pt = (p - 0.88) / 0.12;
+    rx = lerp(6.5, 2.5, pt);
+    ry = 1.5 * (1 - pt) - 0.3 * pt;
+    rz = 3.5 * (1 - pt) + 1.2 * pt;
   }
 
   craft.position.set(rx, ry, rz);
@@ -2111,6 +2225,16 @@ function tEdu() {
   document.getElementById('bE').classList.toggle('act', eduMode);
 }
 
+// 导出UI函数到全局（onclick需要全局可访问）
+window.tPlay = tPlay;
+window.cycSpd = cycSpd;
+window.resetM = resetM;
+window.cycCam = cycCam;
+window.sP = sP;
+window.seekP = seekP;
+window.tChild = tChild;
+window.tEdu = tEdu;
+
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // 第二十一部分：窗口自适应和键盘快捷键
 // ═══════════════════════════════════════════════════════════════════════════════════════
@@ -2141,13 +2265,18 @@ for (var i = 0; i < tLen; i++) {
 }
 tGeom.setDrawRange(0, 0);
 
-// 隐藏加载画面
-setTimeout(function() {
-  document.getElementById('loading').classList.add('hide');
-}, 500);
+  // 隐藏加载画面
+  setTimeout(function() {
+    document.getElementById('loading').classList.add('hide');
+  }, 500);
 
-// 启动主循环
-animate();
+  // 启动主循环
+  animate();
+
+  // 给pbox加点击展开（解决长文字溢出）
+  document.getElementById('pbox').addEventListener('dblclick', function(){
+    this.classList.toggle('expanded');
+  });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // 结束 — NASA Artemis 绕月任务 3D 电影级模拟 v5.0
