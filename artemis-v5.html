@@ -126,47 +126,38 @@ canvas {
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 #pbox {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
+  bottom: 48px;
+  right: 10px;
   pointer-events: auto;
   z-index: 11;
-  padding: 14px 28px;
-  max-width: 86%;
-  min-width: 220px;
-  max-height: 100px;
-  overflow: hidden;
-  border-radius: 16px;
-}
-#pbox.expanded {
-  max-height: 320px;
-  overflow-y: auto;
+  padding: 8px 14px;
+  min-width: 155px;
+  max-width: 195px;
+  border-radius: 12px;
+  text-align: right;
 }
 #pname {
-  font-size: 22px;
+  font-size: 13px;
   font-weight: 700;
   color: #00d4ff;
-  text-shadow: 0 0 30px rgba(0, 212, 255, 0.35);
+  text-shadow: 0 0 16px rgba(0, 212, 255, 0.25);
   transition: color 0.6s ease;
   line-height: 1.3;
 }
 #pdesc {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
-  max-width: 580px;
-  line-height: 1.8;
-  margin: 6px auto 0;
-  letter-spacing: 0.3px;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+  margin: 2px 0 0;
+  letter-spacing: 0.2px;
 }
 #pdate {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.22);
-  margin-top: 4px;
-  letter-spacing: 1.5px;
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.2);
+  margin-top: 2px;
+  letter-spacing: 1px;
   font-family: 'Courier New', 'Consolas', monospace;
 }
-
 /* ═══════════════════════════════════════════════════════════════════════════════════════
    遥测面板 — 右上角，显示飞行时间/距离/速度/高度/轨道圈数/进度
    ═══════════════════════════════════════════════════════════════════════════════════════ */
@@ -627,7 +618,9 @@ canvas {
   }
   .cb .icon { font-size: 11px !important; margin-right: 2px !important; }
   #legend { display: none !important; }
-  #pbox { padding: 10px 18px !important; top: 50% !important; max-width: 92% !important; max-height: 80px !important; }
+  #pbox { padding: 6px 10px !important; bottom: 42px !important; right: 6px !important; min-width: 120px !important; max-width: 160px !important; }
+  #pname { font-size: 11px !important; }
+  #pdesc { font-size: 8px !important; line-height: 1.3 !important; }
   #edu { max-width: 160px !important; padding: 8px 12px !important; font-size: 10px !important; }
   #clbl { font-size: 8px !important; padding: 4px 8px !important; top: 6px !important; left: 6px !important; }
   .pl { font-size: 7px !important; }
@@ -823,7 +816,7 @@ canvas { width: 100%; height: 100%; display: block; }
     <div class="item"><div class="dot" style="background:#4a90d9;box-shadow:0 0 10px rgba(74,144,217,0.5)"></div>🌍 地球</div>
     <div class="item"><div class="dot" style="background:#c0c0c0;box-shadow:0 0 8px rgba(192,192,192,0.3)"></div>🌙 月球</div>
     <div class="item"><div class="dot" style="background:#ffd700;box-shadow:0 0 16px rgba(255,215,0,0.5)"></div>☀️ 太阳</div>
-    <div class="item"><div class="dot" style="background:#00d4ff;box-shadow:0 0 10px rgba(0,212,255,0.4);width:4px;height:4px;border-radius:2px"></div>🚀 Orion 飞行轨迹</div>
+
     <div class="item"><div class="dot" style="background:#ff6b6b;opacity:0.5;width:3px;height:3px"></div>🎯 NRHO 目标轨道</div>
   </div>
 
@@ -1721,7 +1714,7 @@ var tGeom = new THREE.BufferGeometry();
 tGeom.setAttribute('position', new THREE.BufferAttribute(tBuf, 3));
 var tLine = new THREE.Line(
   tGeom,
-  new THREE.LineBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.30 })
+  new THREE.LineBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.0 })
 );
 scene.add(tLine);
 var tIdx = 0, tFull = false;
@@ -1990,28 +1983,34 @@ function updateMission(p) {
     facingMoon = true;
   } else if (p < 0.85) {
     // ===== 第4阶段：返回地球（p=0.65~0.85）=====
-    // 考虑地球自转：返回路径偏转
+    // 沿月球→地球方向飞回
     var pt = (p - 0.65) / 0.20;
-    var sway = Math.sin(pt * Math.PI) * 0.5;
-    // 从月球位置返回地球方向
+    var sway = Math.sin(pt * Math.PI) * 0.4;
     var toEarthX = -mx, toEarthZ = -mz;
     var dist = Math.sqrt(toEarthX*toEarthX + toEarthZ*toEarthZ);
     toEarthX /= dist; toEarthZ /= dist;
-    // 地球自转偏移（返回时落点东移）
-    var earthRotOff = pt * 0.6;
-    var inR = lerp(10, 4, pt);
-    rx = toEarthX * inR + earthRotOff + sway * 0.8;
-    ry = lerp(0.4, 1.2, pt) + sway * 0.2;
-    rz = toEarthZ * inR + earthRotOff * 0.5 + sway * 0.4;
+    // 地球自转偏移（太平洋落点）
+    var earthRotOff = pt * 0.7;
+    var inR = lerp(10, 3.2, pt);
+    rx = toEarthX * inR + earthRotOff + sway * 0.4;
+    ry = lerp(0.4, 0.8, pt) + sway * 0.2;
+    rz = toEarthZ * inR + earthRotOff * 0.3 + sway * 0.2;
+    facingMoon = false;
+  } else if (p < 0.95) {
+    // ===== 第5阶段：再入大气层（p=0.85~0.95）=====
+    // 从近地轨道下降至地表
+    var pt = (p - 0.85) / 0.10;
+    var reentryAngle = pt * Math.PI * 0.4;
+    rx = lerp(1.5, 0.4, pt) + Math.sin(reentryAngle) * 0.6;
+    ry = lerp(0.8, -2.0, pt);
+    rz = lerp(0.5, 0.3, pt) + Math.cos(reentryAngle) * 0.3;
     facingMoon = false;
   } else {
-    // ===== 第5阶段：再入溅落（p=0.85~1.0）=====
-    var pt = (p - 0.85) / 0.15;
-    // 地球自转使落点偏移（太平洋溅落区域）
-    var reentryAngle = pt * 0.3;
-    rx = lerp(4, 2.0, pt) + Math.sin(reentryAngle) * 0.8;
-    ry = lerp(1.2, -0.5, pt);
-    rz = lerp(1.0, 0.3, pt) + Math.cos(reentryAngle) * 0.6;
+    // ===== 第6阶段：溅落太平洋（p=0.95~1.0）=====
+    var pt = (p - 0.95) / 0.05;
+    rx = lerp(0.4, 0.3, pt);
+    ry = lerp(-2.0, -2.2, pt);
+    rz = lerp(0.3, 0.2, pt);
     facingMoon = false;
   }
 
